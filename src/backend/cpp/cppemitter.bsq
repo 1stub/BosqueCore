@@ -1,0 +1,18 @@
+declare namespace CPPEmitter;
+
+%% const max_chars: Nat = 8n;
+
+namespace CPPNameManager {
+    function getPathStackPush(): CString {
+        return 'PathStack::push';
+    }
+
+    function getPathStackPop(): CString {
+        return 'PathStack::pop';
+    }
+}
+
+%% Our toplevel emitter, actually spits out cpp file
+function emitCPP(): CString {
+    return CPPNameManager::getPathStackPop();
+}

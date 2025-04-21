@@ -11,6 +11,7 @@ const tscdir = path.dirname(__dirname);
 
 let donecopy = false;
 let donets = false;
+let donecpp = false;
 
 let haderror = false;
 
@@ -43,6 +44,10 @@ exec("node ./resource_copy.js", {cwd: builddir}, (err, stdout, stderr) => {
     doneop(err !== null, err !== null ? stderr : "done copy..."); 
 });
 
+exec("node ./build_cppemit.js", {cwd: builddir}, (err, stdout, stderr) => {
+    donecpp = true;
+    doneop(err !== null, err !== null ? err + stderr + stdout : "done cpp..."); 
+});
 /*
 exec(`node ./evaluator_build.js ${mode}`, {cwd: builddir}, (err, stdout, stderr) => {
     donesmt = true;

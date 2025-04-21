@@ -1,0 +1,5 @@
+namespace CPPEmitter;
+
+chktest test_basicCPPEmit(): Bool {
+    return true;
+}

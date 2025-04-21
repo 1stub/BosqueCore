@@ -21,6 +21,14 @@ namespace StringOps {
 
     function s_replaceUniqueStringOccurrence(s: String, target: String, replacement: String): String = string_replace_unique_string_occurrence;
     function s_replaceAllStringOccurrences(s: String, target: String, replacement: String): String = string_replace_all_string_occurrences;
+
+    %*
+    __internal entity PathStack {
+    }
+
+    __internal entity CharBuffer {
+    }
+    *%
 }
 #else
 #endif %% EXEC_LIBS
