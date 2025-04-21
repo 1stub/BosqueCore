@@ -3103,6 +3103,7 @@ class JSEmitter {
         }
         else if(dfields.length === 1) {
             const sdf = dfields[0];
+            const fi = `"${sdf.name}", "${sdf.type.tkeystr}"`;
 
             let chekcall: string;
             if(specialop !== undefined) {
@@ -3113,10 +3114,10 @@ class JSEmitter {
             }
 
             if(!sdf.hasdefault) {
-                body = `{ ${chekcall}; return ${createcall}(parser.parseSingleArg("${sdf.type.tkeystr}")); }`;
+                body = `{ ${chekcall}; return ${createcall}(parser.parseSingleArg(${fi})); }`;
             }
             else {
-                body = `{ ${chekcall}; return ${createcall}(parser.parseSingleOrDefaultArg("${sdf.type.tkeystr}")); }`;               
+                body = `{ ${chekcall}; return ${createcall}(parser.parseSingleOrDefaultArg(${fi})); }`;               
             }
         }
         else {

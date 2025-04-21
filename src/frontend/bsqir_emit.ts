@@ -448,7 +448,7 @@ class BSQIREmitter {
     }
 
     private emitPostfixOperationBase(exp: PostfixOperation): string {
-        return `sinfo=${this.emitSourceInfo(exp.sinfo)}, rcvrType=${this.emitTypeSignature(exp.getRcvrType())}, etype=${this.emitTypeSignature(exp.getType())}`;
+        return `sinfo=${this.emitSourceInfo(exp.sinfo)}, baseType=${this.emitTypeSignature(exp.getRcvrType())}`;
     }
 
     private emitPostfixAccessFromName(exp: PostfixAccessFromName): string {
@@ -552,7 +552,8 @@ class BSQIREmitter {
             }
         });
 
-        return `BSQAssembly::PostfixOp{ rootExp=${rootExp}, ops=List<BSQAssembly::PostfixOp>{${ops}} }`;
+        const ebase = this.emitExpressionBase(exp); 
+        return `BSQAssembly::PostfixOp{ ${ebase}, rootExp=${rootExp}, ops=List<BSQAssembly::PostfixOperation>{${ops}} }`;
     }
 
     private emitPrefixNotOpExpression(exp: PrefixNotOpExpression): string {
@@ -1565,7 +1566,7 @@ class BSQIREmitter {
     }
 
     private emitSaturatedFieldInfo(sfield: {name: string, type: TypeSignature, hasdefault: boolean, containingtype: NominalTypeSignature}): string {
-        return `BSQAssembly::SaturatedFieldInfo{ containingtype=${this.emitTypeSignature(sfield.containingtype)}, name='${sfield.name}'<Identifier>, type=${this.emitTypeSignature(sfield.type)}, hasdefault=${sfield.hasdefault} }`;
+        return `BSQAssembly::SaturatedFieldInfo{ containingtype=${this.emitTypeSignature(sfield.containingtype)}, fname='${sfield.name}'<Identifier>, ftype=${this.emitTypeSignature(sfield.type)}, hasdefault=${sfield.hasdefault} }`;
     }
     
     private emitSaturatedInvariantInfo(invariants: {containingtype: NominalTypeSignature, file: string, sinfo: SourceInfo, tag: string | undefined}): string {

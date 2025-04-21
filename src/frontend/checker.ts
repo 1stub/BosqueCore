@@ -1570,7 +1570,7 @@ class TypeChecker {
         const corens = this.relations.assembly.getCoreNamespace();
 
         const etype = this.checkExpression(env, exp.arg, undefined);
-        if((etype instanceof ErrorTypeSignature) || (etype instanceof EListTypeSignature)) {
+        if((etype instanceof ErrorTypeSignature)) {
             this.reportError(exp.sinfo, `Invalid type for special constructor -- got ${etype.emit()}`);
             return exp.setType(etype);
         }
@@ -2028,7 +2028,7 @@ class TypeChecker {
 
         this.checkError(exp.sinfo, !this.relations.isBooleanType(etype), "Prefix Not operator requires a Bool based type");
         
-        exp.opertype = etype;
+        exp.opertype = this.resolveUnderlyingType(etype);
         return exp.setType(etype);
     }
 

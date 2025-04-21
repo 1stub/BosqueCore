@@ -429,6 +429,9 @@ concept Statement {
     field sinfo: SourceInfo;
 }
 
+entity EmptyStatement provides Statement {
+}
+
 entity VariableDeclarationStatement provides Statement {
     field name: Identifier;
     field vtype: TypeSignature;
