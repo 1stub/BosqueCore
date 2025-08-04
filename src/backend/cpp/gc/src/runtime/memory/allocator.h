@@ -57,7 +57,7 @@ public:
     void initialize(size_t numbytes, void** data) noexcept
     {
         this->native_global_storage = data;
-        this->native_global_storage_end = (void**)((uint8_t*)data + numbytes);
+        this->native_global_storage_end = reinterpret_cast<void**>(reinterpret_cast<uint8_t*>(data) + numbytes);
     }
 };
 
@@ -91,23 +91,23 @@ public:
     void rebuild() noexcept;
 
     static inline PageInfo* extractPageFromPointer(void* p) noexcept {
-        return (PageInfo*)((uintptr_t)(p) & PAGE_ADDR_MASK);
+        return reinterpret_cast<PageInfo*>(reinterpret_cast<uintptr_t>(p) & PAGE_ADDR_MASK);
     }
 
     static inline size_t getIndexForObjectInPage(void* p) noexcept {
         const PageInfo* page = extractPageFromPointer(p);
         
-        return (size_t)((uint8_t*)p - page->data) / (size_t)page->realsize;
+        return static_cast<size_t>(static_cast<uint8_t*>(p) - page->data) / static_cast<size_t>(page->realsize);
     }
 
     static inline MetaData* getObjectMetadataAligned(void* p) noexcept {
         const PageInfo* page = extractPageFromPointer(p);
-        size_t idx = (size_t)((uint8_t*)p - page->data) / (size_t)page->realsize;
+        size_t idx = static_cast<size_t>(static_cast<uint8_t*>(p) - page->data) / static_cast<size_t>(page->realsize);
 
 #ifdef ALLOC_DEBUG_CANARY
-        return (MetaData*)(page->data + idx * page->realsize + ALLOC_DEBUG_CANARY_SIZE);
+        return reinterpret_cast<MetaData*>(page->data + idx * page->realsize + ALLOC_DEBUG_CANARY_SIZE);
 #else
-        return (MetaData*)(page->data + idx * page->realsize);
+        return reinterpret_cast<MetaData*>(page->data + idx * page->realsize);
 #endif
     }
 
@@ -125,10 +125,10 @@ public:
 
     static void initializeWithDebugInfo(void* mem, __CoreGC::TypeInfoBase* type) noexcept
     {
-        uint64_t* pre = (uint64_t*)mem;
+        uint64_t* pre = static_cast<uint64_t*>(mem);
         *pre = ALLOC_DEBUG_CANARY_VALUE;
 
-        uint64_t* post = (uint64_t*)((uint8_t*)mem + ALLOC_DEBUG_CANARY_SIZE + sizeof(MetaData) + type->type_size);
+        uint64_t* post = reinterpret_cast<uint64_t*>(static_cast<uint8_t*>(mem) + ALLOC_DEBUG_CANARY_SIZE + sizeof(MetaData) + type->type_size);
         *post = ALLOC_DEBUG_CANARY_VALUE;
     }
 };
@@ -163,13 +163,13 @@ public:
 };
 
 #ifndef ALLOC_DEBUG_CANARY
-#define SETUP_ALLOC_LAYOUT_GET_META_PTR(BASEALLOC) (MetaData*)((uint8_t*)(BASEALLOC))
-#define SETUP_ALLOC_LAYOUT_GET_OBJ_PTR(BASEALLOC) (void*)((uint8_t*)(BASEALLOC) + sizeof(MetaData))
+#define SETUP_ALLOC_LAYOUT_GET_META_PTR(BASEALLOC) static_cast<MetaData*>((BASEALLOC))
+#define SETUP_ALLOC_LAYOUT_GET_OBJ_PTR(BASEALLOC) reinterpret_cast<void*>(static_cast<uint8_t*>((BASEALLOC)) + sizeof(MetaData))
 
 #define SET_ALLOC_LAYOUT_HANDLE_CANARY(BASEALLOC, T)
 #else
-#define SETUP_ALLOC_LAYOUT_GET_META_PTR(BASEALLOC) (MetaData*)((uint8_t*)(BASEALLOC) + ALLOC_DEBUG_CANARY_SIZE)
-#define SETUP_ALLOC_LAYOUT_GET_OBJ_PTR(BASEALLOC) (void*)((uint8_t*)(BASEALLOC) + ALLOC_DEBUG_CANARY_SIZE + sizeof(MetaData))
+#define SETUP_ALLOC_LAYOUT_GET_META_PTR(BASEALLOC) reinterpret_cast<MetaData*>(static_cast<uint8_t*>((BASEALLOC)) + ALLOC_DEBUG_CANARY_SIZE)
+#define SETUP_ALLOC_LAYOUT_GET_OBJ_PTR(BASEALLOC) reinterpret_cast<void*>(static_cast<uint8_t*>((BASEALLOC)) + ALLOC_DEBUG_CANARY_SIZE + sizeof(MetaData))
 
 #define SET_ALLOC_LAYOUT_HANDLE_CANARY(BASEALLOC, T) PageInfo::initializeWithDebugInfo(BASEALLOC, T)
 #endif
@@ -189,7 +189,7 @@ T* MEM_ALLOC_CHECK(T* alloc)
 #define GC_ALLOC_OBJECT(A, L) MEM_ALLOC_CHECK((A).allocate((L)))
 #define 𝐀𝐥𝐥𝐨𝐜𝐓𝐲𝐩𝐞(T, A, L, ...) (new (GC_ALLOC_OBJECT(A, L)) T(__VA_ARGS__))
 
-#define CALC_APPROX_UTILIZATION(P) 1.0f - ((float)P->freecount / (float)P->entrycount)
+#define CALC_APPROX_UTILIZATION(P) 1.0f - (static_cast<float>(P->freecount) / static_cast<float>(P->entrycount))
 
 #define NUM_LOW_UTIL_BUCKETS 12
 #define NUM_HIGH_UTIL_BUCKETS 6
