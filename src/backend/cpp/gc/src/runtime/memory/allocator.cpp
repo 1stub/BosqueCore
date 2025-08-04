@@ -5,19 +5,19 @@ GlobalDataStorage GlobalDataStorage::g_global_data;
 
 PageInfo* PageInfo::initialize(void* block, uint16_t allocsize, uint16_t realsize) noexcept
 {
-    PageInfo* pp = (PageInfo*)block;
+    PageInfo* pp = static_cast<PageInfo*>(block);
 
     pp->freelist = nullptr;
     pp->next = nullptr;
 
-    pp->data = ((uint8_t*)block + sizeof(PageInfo));
+    pp->data = (reinterpret_cast<uint8_t*>(block) + sizeof(PageInfo));
     pp->allocsize = allocsize;
     pp->realsize = realsize;
     pp->pending_decs_count = 0;
     pp->approx_utilization = 100.0f; // Approx util has not been calculated
     pp->left = nullptr;
     pp->right = nullptr;
-    pp->entrycount = (BSQ_BLOCK_ALLOCATION_SIZE - (pp->data - (uint8_t*)pp)) / realsize;
+    pp->entrycount = (BSQ_BLOCK_ALLOCATION_SIZE - (pp->data - reinterpret_cast<uint8_t*>(pp))) / realsize;
     pp->freecount = pp->entrycount;
 
     for(int64_t i = pp->entrycount - 1; i >= 0; i--) {
@@ -70,8 +70,8 @@ PageInfo* GlobalPageGCManager::allocateFreshPage(uint16_t entrysize, uint16_t re
 #else
         ALLOC_LOCK_ACQUIRE();
 
-        void* page = (XAllocPage*)mmap(GlobalThreadAllocInfo::s_current_page_address, BSQ_BLOCK_ALLOCATION_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, 0, 0);
-        GlobalThreadAllocInfo::s_current_page_address = (void*)((uint8_t*)GlobalThreadAllocInfo::s_current_page_address + BSQ_BLOCK_ALLOCATION_SIZE);
+        void* page = mmap(GlobalThreadAllocInfo::s_current_page_address, BSQ_BLOCK_ALLOCATION_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, 0, 0);
+        GlobalThreadAllocInfo::s_current_page_address = static_cast<void*>(static_cast<uint8_t*>(GlobalThreadAllocInfo::s_current_page_address) + BSQ_BLOCK_ALLOCATION_SIZE);
 
         ALLOC_LOCK_RELEASE();    
 #endif
