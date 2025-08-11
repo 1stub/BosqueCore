@@ -1295,21 +1295,43 @@ function emitSwitchStatement(stmt: CPPAssembly::SwitchStatement, ctx: Context, i
     return String::concat(matches, failure);
 }
 
+function emitVariableMultiInitilizationExplicitStatement(vmie: CPPAssembly::VariableMultiInitializationExplicitStatement, ctx: Context, indent: String): String {
+    let stmts = vmie.decls.mapIdx<String>(fn(decl, ii) => {
+        let name = emitIdentifier(decl.0);
+        let tsig = emitTypeSignature(decl.1, true, ctx);
+        let exp = emitExpression(vmie.exps.get(ii), ctx);
+
+        return String::concat(indent, tsig, " ", name, " = ", exp);
+    });
+
+    return String::joinAll(";%n;", stmts);
+}
+
+function emitVariableMultiInitilizationImplicitStatement(vmii: CPPAssembly::VariableMultiInitializationImplicitStatement, ctx: Context, indent: String): String {
+    
+    let exp = emitExpression(vmii.exp, ctx);
+    
+    return String::concat(indent, "... = ", exp);
+}
+
+function emitReturnMultiStatement(rms: CPPAssembly::ReturnMultiStatement, ctx: Context, indent: String): String {
+    return "";
+}
+
 function emitStatement(stmt: CPPAssembly::Statement, ctx: Context, indent: String): String {
     match(stmt)@ {
         CPPAssembly::EmptyStatement => { return ""; }
         %%| CPPAssembly::VariableDeclarationStatement => { abort; }
         %%| CPPAssembly::VariableMultiDeclarationStatement => { abort; }
         | CPPAssembly::VariableInitializationStatement => { return emitVariableInitializationStatement($stmt, ctx, indent); }
-        %%| CPPAssembly::VariableMultiInitializationExplicitStatement => { abort; }
-        %%| CPPAssembly::VariableMultiInitializationImplicitStatement => { abort; }
+        | CPPAssembly::VariableMultiInitializationExplicitStatement => { return emitVariableMultiInitilizationExplicitStatement($stmt, ctx, indent); }
+        | CPPAssembly::VariableMultiInitializationImplicitStatement => { return emitVariableMultiInitilizationImplicitStatement($stmt, ctx, indent); }
         | CPPAssembly::VariableAssignmentStatement => { return emitVariableAssignmentStatement($stmt, ctx, indent); }
-        %%| CPPAssembly::VariableMultiInitializationExplicitStatement => { abort; }
         %%| CPPAssembly::VariableMultiAssignmentImplicitStatement => { abort; }
         %%| CPPAssembly::VariableRetypeStatement => { abort; }
         %%| CPPAssembly::ReturnVoidStatement => { abort; }
         | CPPAssembly::ReturnSingleStatement => { return emitReturnSingleStatement($stmt, ctx, indent); }
-        %%| CPPAssembly::ReturnMultiStatement => { abort; }
+        | CPPAssembly::ReturnMultiStatement => { return emitReturnMultiStatement($stmt, ctx, indent); }
         | CPPAssembly::IfStatement => { return emitIfStatement($stmt, ctx, indent); }
         | CPPAssembly::IfElseStatement => { return emitIfElseStatement($stmt, ctx, indent); }
         | CPPAssembly::IfElifElseStatement => { return emitIfElifElseStatement($stmt, ctx, indent); }
@@ -1341,6 +1363,7 @@ function emitBuiltinBodyImplementation(body: CPPAssembly::BuiltinBodyImplementat
         | "ccharbuffer_create_8" => { return String::concat(indent, "    return __CoreCpp::CCharBuffer::create_3(c1, c2, c3, c4, c5, c6, c7, c8);%n;"); }
         | "ccharbuffer_size" => { return String::concat(indent, "    return cb.size;%n;"); }
         | "ccharbuffer_equal" => { return String::concat(indent, "    return __CoreCpp::cbufferEqual(cb1, cb2);%n;"); }
+        | "nat_to_ccharbuffer" => { return String::concat(indent, "    return __CoreCpp::cbufferFromNat(v);%n;"); }
         | "unicodecharbuffer_create_empty" => { return String::concat(indent, "    return __CoreCpp::UnicodeCharBuffer::create_empty();%n;"); }
         | "unicodecharbuffer_create_1" => { return String::concat(indent, "    return __CoreCpp::UnicodeCharBuffer::create_3(c1);%n;"); }
         | "unicodecharbuffer_create_2" => { return String::concat(indent, "    return __CoreCpp::UnicodeCharBuffer::create_3(c1, c2);%n;"); }
@@ -1352,6 +1375,7 @@ function emitBuiltinBodyImplementation(body: CPPAssembly::BuiltinBodyImplementat
         | "unicodecharbuffer_create_8" => { return String::concat(indent, "    return __CoreCpp::UnicodeCharBuffer::create_3(c1, c2, c3, c4, c5, c6, c7, c8);%n;"); }
         | "cstring_concat2" => { return String::concat(indent, "    return Core::CRopeOps::s_crope_concat2(s1, s2);%n;"); }
         | "cstring_empty" => { return String::concat(indent, "    return Core::CRopeOps::s_crope_empty(s);%n;"); }
+        | "s_nat_to_cstring" => { return String::concat(indent, "    return Core::CRopeOps::s_nat_to_crope(v);%n;"); }
         | _ => { abort; } %% TODO: Not implemented
     }
 }

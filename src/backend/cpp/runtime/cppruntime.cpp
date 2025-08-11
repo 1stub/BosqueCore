@@ -62,6 +62,30 @@ CCharBuffer cbufferFromStringLiteral(size_t size, const CChar* &basestr) {
     }
 }
 
+CCharBuffer cbufferFromNat(Nat v) {
+    uint64_t val = v.get();
+    const int radix = 10;
+
+    CCharBuffer buf = {};
+    for(int i = 0; i < maxCCharBufSize; i++) {
+        if(val == 0) {
+            return buf;
+        }
+
+        uint64_t dig = val % radix;
+        val /= radix;
+
+        if(dig < 10) {
+            buf.chars[maxCCharBufSize - i] = dig + '0';
+        }
+        else {
+            buf.chars[maxCCharBufSize - i] = dig + 'a' - 10;
+        }
+    }
+    
+    return buf;
+}
+
 UnicodeCharBuffer UnicodeCharBuffer::create_empty() {
     return {{}, 0_n};
 }

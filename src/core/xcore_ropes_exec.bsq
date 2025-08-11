@@ -9,6 +9,7 @@ __internal entity CCharBuffer {
 namespace CCharBufferOps {
     function size(cb: CCharBuffer): Nat = ccharbuffer_size;
     function equal(cb1: CCharBuffer, cb2: CCharBuffer): Bool = ccharbuffer_equal;
+    function natToCBuffer(v: Nat): CCharBuffer = nat_to_ccharbuffer;
 
     function s_create_empty(): CCharBuffer = ccharbuffer_create_empty;
     function s_create_1(c1: CChar): CCharBuffer = ccharbuffer_create_1;
@@ -49,6 +50,26 @@ namespace CRopeOps {
 
     function s_crope_equal(cr1: CRope, cr2: CRope): Bool {
         return equal(cr1.value, cr2.value);
+    }
+
+    %% Once we know this works lets un-magic number it
+    function s_nat_to_crope(v: Nat): CRope {
+        let buf1 = CCharBufferOps::natToCBuffer(v);
+        if(v < 99999999n) {
+            return s_crope_create(buf1);
+        }
+
+        var val = v / 100000000n;
+        let buf2 = CCharBufferOps::natToCBuffer(val);
+        if(val < 99999999n) {
+            return s_crope_append(s_crope_create(buf1), buf2);
+        }
+
+        val = val / 100000000n;
+        let buf3 = CCharBufferOps::natToCBuffer(val);
+        let rope = s_crope_append(s_crope_append(s_crope_create(buf1), buf2), buf3);
+
+        return rope;
     }
 
     enum Color {
