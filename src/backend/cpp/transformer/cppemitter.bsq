@@ -284,10 +284,12 @@ function generateMethodName(m: CPPAssembly::InvokeKey, declaredIn: CPPAssembly::
     }
 
     %% If we are not in core but calling internal primitive method (i.e. nat to cstring) attach core prefix
-    let isInternalPrimitiveMethod: Bool = ctx.asm.primitives.has(declaredIn) && ctx.fullns_list.front() !== 'Core';
+    let isInternalEntityMethodInvoke: Bool = 
+        ctx.asm.lookupNominalTypeDeclaration(declaredIn)?<CPPAssembly::InternalEntityTypeDecl> 
+        && ctx.fullns_list.front() !== 'Core';
 
     let basename = String::fromCString(removeDeclaredIn);
-    let final = if(isInternalPrimitiveMethod)
+    let final = if(isInternalEntityMethodInvoke)
         then String::concat("Core::", updatedname, "ᘏ", emitSpecialTemplate(basename))
         else String::concat(updatedname, "ᘏ", emitSpecialTemplate(basename));
 
@@ -1110,6 +1112,14 @@ function emitVariableInitializationStatement(stmt: CPPAssembly::VariableInitiali
     return String::concat(full_indent, " ", name, " = ", exp, ";");
 }
 
+function emitVariableDeclarationStatement(stmt: CPPAssembly::VariableDeclarationStatement, ctx: Context, indent: String): String {
+    let name = emitIdentifier(stmt.name);
+    let stype = emitTypeSignature(stmt.vtype, true, ctx);
+
+    let full_indent: String = String::concat(indent, "    ", stype);
+    return String::concat(full_indent, " ", name, ";");
+}
+
 function emitVariableAssignmentStatement(stmt: CPPAssembly::VariableAssignmentStatement, ctx: Context, indent: String): String {
     let name = emitIdentifier(stmt.name);
     let exp = emitExpression(stmt.exp, ctx);
@@ -1337,7 +1347,7 @@ function emitReturnMultiStatement(rms: CPPAssembly::ReturnMultiStatement, ctx: C
 function emitStatement(stmt: CPPAssembly::Statement, ctx: Context, indent: String): String {
     match(stmt)@ {
         CPPAssembly::EmptyStatement => { return ""; }
-        %%| CPPAssembly::VariableDeclarationStatement => { abort; }
+        | CPPAssembly::VariableDeclarationStatement => { return emitVariableDeclarationStatement($stmt, ctx, indent); }
         %%| CPPAssembly::VariableMultiDeclarationStatement => { abort; }
         | CPPAssembly::VariableInitializationStatement => { return emitVariableInitializationStatement($stmt, ctx, indent); }
         | CPPAssembly::VariableMultiInitializationExplicitStatement => { return emitVariableMultiInitilizationExplicitStatement($stmt, ctx, indent); }
@@ -1380,6 +1390,8 @@ function emitBuiltinBodyImplementation(body: CPPAssembly::BuiltinBodyImplementat
         | "ccharbuffer_size" => { return String::concat(indent, "    return cb.size;%n;"); }
         | "ccharbuffer_equal" => { return String::concat(indent, "    return __CoreCpp::cbufferEqual(cb1, cb2);%n;"); }
         | "nat_to_ccharbuffer" => { return String::concat(indent, "    return __CoreCpp::cbufferFromNat(v);%n;"); }
+        | "ccharbuffer_merge" => { return String::concat(indent, "    return __CoreCpp::cbufferMerge(cb1, cb2);%n;"); }
+        | "ccharbuffer_merge2" => { return String::concat(indent, "    return __CoreCpp::cbufferMerge2(cb1, cb2);%n;"); }
         | "unicodecharbuffer_create_empty" => { return String::concat(indent, "    return __CoreCpp::UnicodeCharBuffer::create_empty();%n;"); }
         | "unicodecharbuffer_create_1" => { return String::concat(indent, "    return __CoreCpp::UnicodeCharBuffer::create_3(c1);%n;"); }
         | "unicodecharbuffer_create_2" => { return String::concat(indent, "    return __CoreCpp::UnicodeCharBuffer::create_3(c1, c2);%n;"); }

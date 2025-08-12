@@ -673,6 +673,8 @@ struct CCharBuffer {
 };
 CCharBuffer cbufferFromStringLiteral(size_t size, const CChar* &basestr) noexcept;
 CCharBuffer cbufferFromNat(Nat v) noexcept;
+CCharBuffer& cbufferMerge(CCharBuffer& cb1, CCharBuffer& cb2) noexcept;
+Tuple2<maxCCharBufSize / 8, maxCCharBufSize / 8> cbufferMerge2(CCharBuffer& cb1, CCharBuffer& cb2) noexcept;
 
 inline Bool cbuf_memcmp(CChar b1[maxCCharBufSize], CChar b2[maxCCharBufSize]) noexcept {
     static_assert(maxCCharBufSize * sizeof(CChar) == sizeof(uintptr_t));

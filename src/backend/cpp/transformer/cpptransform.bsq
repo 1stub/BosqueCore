@@ -810,6 +810,13 @@ entity CPPTransformer {
         return CPPAssembly::VariableAssignmentStatement{ name, vtype, exp };
     }
 
+    method transformVariableDeclarationStatement(stmt: BSQAssembly::VariableDeclarationStatement): CPPAssembly::VariableDeclarationStatement {
+        let name = CPPTransformNameManager::convertIdentifier(stmt.name);
+        let vtype = this.convertTypeSignature(stmt.vtype);
+
+        return CPPAssembly::VariableDeclarationStatement{ name, vtype };
+    }
+
     method transformVariableMultiInitilizationExplicitStatement(vmie: BSQAssembly::VariableMultiInitializationExplicitStatement): CPPAssembly::VariableMultiInitializationExplicitStatement {
         let decls = vmie.decls.map<(|CPPAssembly::Identifier, CPPAssembly::TypeSignature|)>(fn(decl) => {
             let cppidentifier = CPPTransformNameManager::convertIdentifier(decl.0);
@@ -845,7 +852,7 @@ entity CPPTransformer {
     method transformStatementToCpp(stmt: BSQAssembly::Statement): CPPAssembly::Statement {
         match(stmt)@ {
             BSQAssembly::EmptyStatement => { return CPPAssembly::EmptyStatement{ }; }
-            | BSQAssembly::VariableDeclarationStatement => { abort; }
+            | BSQAssembly::VariableDeclarationStatement => { return this.transformVariableDeclarationStatement($stmt); }
             | BSQAssembly::VariableMultiDeclarationStatement => { abort; }
             | BSQAssembly::VariableInitializationStatement => { return this.transformVariableInitializationStatementToCpp($stmt); }
             | BSQAssembly::VariableMultiInitializationExplicitStatement => { return this.transformVariableMultiInitilizationExplicitStatement($stmt); }
