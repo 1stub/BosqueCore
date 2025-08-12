@@ -55,17 +55,17 @@ namespace CRopeOps {
     %% Once we know this works lets un-magic number it
     function s_nat_to_crope(v: Nat): CRope {
         let buf1 = CCharBufferOps::natToCBuffer(v);
-        if(v < 99999999n) {
+        if(v <= 99999999n) {
             return s_crope_create(buf1);
         }
 
-        var val = v / 100000000n;
+        var val = v // 100000000n;
         let buf2 = CCharBufferOps::natToCBuffer(val);
-        if(val < 99999999n) {
+        if(val <= 99999999n) {
             return s_crope_append(s_crope_create(buf1), buf2);
         }
 
-        val = val / 100000000n;
+        val = val // 100000000n;
         let buf3 = CCharBufferOps::natToCBuffer(val);
         let rope = s_crope_append(s_crope_append(s_crope_create(buf1), buf2), buf3);
 

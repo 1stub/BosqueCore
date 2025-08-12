@@ -671,7 +671,8 @@ struct CCharBuffer {
     static CCharBuffer create_7(CChar c1, CChar c2, CChar c3, CChar c4, CChar c5, CChar c6, CChar c7);
     static CCharBuffer create_8(CChar c1, CChar c2, CChar c3, CChar c4, CChar c5, CChar c6, CChar c7, CChar c8);
 };
-CCharBuffer cbufferFromStringLiteral(size_t size, const CChar* &basestr);
+CCharBuffer cbufferFromStringLiteral(size_t size, const CChar* &basestr) noexcept;
+CCharBuffer cbufferFromNat(Nat v) noexcept;
 
 inline Bool cbuf_memcmp(CChar b1[maxCCharBufSize], CChar b2[maxCCharBufSize]) noexcept {
     static_assert(maxCCharBufSize * sizeof(CChar) == sizeof(uintptr_t));

@@ -45,7 +45,7 @@ CCharBuffer CCharBuffer::create_8(CChar c1, CChar c2, CChar c3, CChar c4, CChar 
     return {{c1, c2, c3, c4, c5, c6, c7, c8}, 8_n};
 }
 
-CCharBuffer cbufferFromStringLiteral(size_t size, const CChar* &basestr) {
+CCharBuffer cbufferFromStringLiteral(size_t size, const CChar* &basestr) noexcept {
     const CChar* buf = basestr;
     basestr += 8;
 
@@ -62,7 +62,7 @@ CCharBuffer cbufferFromStringLiteral(size_t size, const CChar* &basestr) {
     }
 }
 
-CCharBuffer cbufferFromNat(Nat v) {
+CCharBuffer cbufferFromNat(Nat v) noexcept {
     uint64_t val = v.get();
     const int radix = 10;
 
