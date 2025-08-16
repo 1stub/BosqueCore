@@ -26,6 +26,8 @@
 #define GC_INVARIANTS
 #endif
 
+#define BSQ_NO_SANITIZE 
+
 #ifdef ALLOC_DEBUG_MEM_DETERMINISTIC
 #define ALLOC_BASE_ADDRESS ((void*)(0x4000000000ul)) 
 #define ALLOC_ADDRESS_SPAN 2147483648ul
@@ -46,6 +48,11 @@
 //then BSQ_COLLECTION_THRESHOLD * (BSQ_BLOCK_ALLOCATION_SIZE / 8 ) = 524288, thus max possible
 //entries before triggering a collection 
 //
+
+//
+// These fellas are source for issues...
+//
+
 #define BSQ_MAX_FWD_TABLE_ENTRIES 524288ul
 
 #define BSQ_MAX_ROOTS 4096ul
@@ -59,7 +66,7 @@
 #define BSQ_INITIAL_MAX_DECREMENT_COUNT (BSQ_COLLECTION_THRESHOLD * BSQ_BLOCK_ALLOCATION_SIZE) / (BSQ_MEM_ALIGNMENT * 32)
 
 //mem is an 8byte aligned pointer and n is the number of 8byte words to clear
-inline void __attribute__((no_sanitize_address)) xmem_zerofill(void* mem, size_t n) noexcept
+inline void xmem_zerofill(void* mem, size_t n) noexcept
 {
     void** obj = (void**)mem;
     void** end = obj + n;
@@ -70,7 +77,7 @@ inline void __attribute__((no_sanitize_address)) xmem_zerofill(void* mem, size_t
 }
 
 //Clears a page of memory
-inline void __attribute__((no_sanitize_address)) xmem_zerofillpage(void* mem) noexcept
+inline void xmem_zerofillpage(void* mem) noexcept
 {
     void** obj = (void**)mem;
     void** end = obj + (BSQ_BLOCK_ALLOCATION_SIZE / sizeof(void*));
@@ -81,7 +88,7 @@ inline void __attribute__((no_sanitize_address)) xmem_zerofillpage(void* mem) no
 }
 
 //mem is an 8byte aligned pointer and n is the number of 8byte words to clear
-inline void __attribute__((no_sanitize_address)) xmem_copy(void* memsrc, void* memtrgt, size_t n) noexcept
+inline void xmem_copy(void* memsrc, void* memtrgt, size_t n) noexcept
 {
     void** objsrc = (void**)memsrc;
     void** objend = objsrc + n;
@@ -136,14 +143,14 @@ public:
 struct MetaData 
 {
     //!!!! alloc info is valid even when this is in a free-list so we need to make sure it does not collide with the free-list data !!!!
-    __CoreGC::TypeInfoBase* type;
-    bool isalloc;
-    bool isyoung;
-    bool ismarked;
-    bool isroot;
+    __CoreGC::TypeInfoBase* type = nullptr;
+    bool isalloc = false;
+    bool isyoung = false;
+    bool ismarked = false;
+    bool isroot = false;
     //TODO -- also a parent thread root bit (that we don't clear but we treat as a root for the purposes of marking etc.)
-    uint32_t forward_index;
-    uint32_t ref_count;
+    uint32_t forward_index = MAX_FWD_INDEX;
+    uint32_t ref_count = MAX_FWD_INDEX;
 }; 
 #else
 typedef struct MetaData 
