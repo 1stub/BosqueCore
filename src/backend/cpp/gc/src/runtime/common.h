@@ -11,7 +11,16 @@
 
 #ifdef BSQ_GC_CHECK_ENABLED
 #define ALLOC_DEBUG_MEM_INITIALIZE
-#define ALLOC_DEBUG_MEM_DETERMINISTIC
+
+//
+// NOTE: Lets turn this back on once debugging is done.
+// Setting mmap to a fixed addresses messes with asans
+// memory map so lets just default for now.
+//
+
+//#define ALLOC_DEBUG_MEM_DETERMINISTIC
+
+
 #define ALLOC_DEBUG_CANARY
 #define DSA_INVARIANTS
 #define GC_INVARIANTS
@@ -39,7 +48,7 @@
 //
 #define BSQ_MAX_FWD_TABLE_ENTRIES 524288ul
 
-#define BSQ_MAX_ROOTS 2048ul
+#define BSQ_MAX_ROOTS 4096ul
 #define BSQ_MAX_ALLOC_SLOTS 64ul
 
 //Number of allocation pages we fill up before we start collecting
@@ -50,7 +59,7 @@
 #define BSQ_INITIAL_MAX_DECREMENT_COUNT (BSQ_COLLECTION_THRESHOLD * BSQ_BLOCK_ALLOCATION_SIZE) / (BSQ_MEM_ALIGNMENT * 32)
 
 //mem is an 8byte aligned pointer and n is the number of 8byte words to clear
-inline void xmem_zerofill(void* mem, size_t n) noexcept
+inline void __attribute__((no_sanitize_address)) xmem_zerofill(void* mem, size_t n) noexcept
 {
     void** obj = (void**)mem;
     void** end = obj + n;
@@ -61,7 +70,7 @@ inline void xmem_zerofill(void* mem, size_t n) noexcept
 }
 
 //Clears a page of memory
-inline void xmem_zerofillpage(void* mem) noexcept
+inline void __attribute__((no_sanitize_address)) xmem_zerofillpage(void* mem) noexcept
 {
     void** obj = (void**)mem;
     void** end = obj + (BSQ_BLOCK_ALLOCATION_SIZE / sizeof(void*));
@@ -72,7 +81,7 @@ inline void xmem_zerofillpage(void* mem) noexcept
 }
 
 //mem is an 8byte aligned pointer and n is the number of 8byte words to clear
-inline void xmem_copy(void* memsrc, void* memtrgt, size_t n) noexcept
+inline void __attribute__((no_sanitize_address)) xmem_copy(void* memsrc, void* memtrgt, size_t n) noexcept
 {
     void** objsrc = (void**)memsrc;
     void** objend = objsrc + n;

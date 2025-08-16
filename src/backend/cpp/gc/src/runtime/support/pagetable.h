@@ -42,6 +42,12 @@ public:
         uintptr_t index3 = (address >> LEVEL3_SHIFT) & LEVEL_MASK; // Bits 29-21
         uintptr_t index4 = (address >> LEVEL4_SHIFT) & LEVEL_MASK; // Bits 20-12
 
+        // Ensure we do not index off a page
+        assert(index1 < (BSQ_BLOCK_ALLOCATION_SIZE / sizeof(uintptr_t)));
+        assert(index2 < (BSQ_BLOCK_ALLOCATION_SIZE / sizeof(uintptr_t)));
+        assert(index3 < (BSQ_BLOCK_ALLOCATION_SIZE / sizeof(uintptr_t)));
+        assert(index4 < (BSQ_BLOCK_ALLOCATION_SIZE / sizeof(uintptr_t)));
+
         void** level1 = pagetable_root;
         if(!level1[index1]) {
             level1[index1] = (void**)XAllocPageManager::g_page_manager.allocatePage();

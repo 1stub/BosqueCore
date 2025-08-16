@@ -22,6 +22,11 @@ void BSQMemoryTheadLocalInfo::initialize(size_t tl_id, void** caller_rbp) noexce
     this->tl_id = tl_id;
     this->native_stack_base = caller_rbp;
 
+    //
+    // These are all VERY sketchy. There is no safety in possible access off
+    // bounds of any of these arrays. We should make them all array lists for
+    // now 
+    //
     this->roots = roots_array;
     this->roots_count = 0;
     xmem_zerofill(this->roots, BSQ_MAX_ROOTS);
@@ -32,7 +37,7 @@ void BSQMemoryTheadLocalInfo::initialize(size_t tl_id, void** caller_rbp) noexce
 
     this->forward_table = forward_table_array;
     this->forward_table_index = 0;
-    xmem_zerofill(this->forward_table, BSQ_MAX_ROOTS);
+    xmem_zerofill(this->forward_table, BSQ_MAX_FWD_TABLE_ENTRIES);
 
     this->g_gcallocs = g_gcallocs_array;
     xmem_zerofill(this->g_gcallocs, BSQ_MAX_ALLOC_SLOTS);
@@ -40,10 +45,7 @@ void BSQMemoryTheadLocalInfo::initialize(size_t tl_id, void** caller_rbp) noexce
 
 void BSQMemoryTheadLocalInfo::loadNativeRootSet() noexcept
 {
-    this->native_stack_count = 0;
-
-    this->native_stack_contents = (void**)XAllocPageManager::g_page_manager.allocatePage();
-    xmem_zerofillpage(this->native_stack_contents);
+    this->native_stack_contents.initialize();
 
     //this code should load from the asm stack pointers and copy the native stack into the roots memory
     #ifdef __x86_64__
@@ -57,8 +59,9 @@ void BSQMemoryTheadLocalInfo::loadNativeRootSet() noexcept
             /* Walk entire frame looking for valid pointers */
             void** it = current_frame;
             void* potential_ptr = *it;
+
             if (PTR_IN_RANGE(potential_ptr) && PTR_NOT_IN_STACK(native_stack_base, current_frame, potential_ptr)) {
-                this->native_stack_contents[this->native_stack_count++] = potential_ptr;
+                this->native_stack_contents.push_back(potential_ptr);
             }
             it--;
             
@@ -86,12 +89,12 @@ void BSQMemoryTheadLocalInfo::loadNativeRootSet() noexcept
     #endif
 }
 
+//
+// TODO: Move to header and inline
+//
 void BSQMemoryTheadLocalInfo::unloadNativeRootSet() noexcept
 {
-    this->native_stack_count = 0;
-
-    XAllocPageManager::g_page_manager.freePage(this->native_stack_contents);
-    this->native_stack_contents = nullptr;
+    this->native_stack_contents.clear();
 }
 
 #ifdef MEM_STATS

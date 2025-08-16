@@ -28,8 +28,8 @@ CSTDFLAGS=-Wall -Wextra -Wno-unused-parameter -Wuninitialized -Werror -std=gnu++
 INTERNAL_FLAGS.gc= 
 INTERNAL_FLAGS.epsilon=-DEPSILON
 
-CFLAGS_OPT.dev=-O0 -g -ggdb 
-CFLAGS_OPT.release=-O2 -march=x86-64-v3
+CFLAGS_OPT.dev=-O0 -g -ggdb -g -ggdb
+CFLAGS_OPT.release=-O2 -march=x86-64-v3 -fsanitize=address
 CFLAGS=${CFLAGS_OPT.${BUILD}} ${CSTDFLAGS} ${INTERNAL_FLAGS.${ALLOC}}
 
 SUPPORT_HEADERS=$(RUNTIME_DIR)common.h $(SUPPORT_DIR)xalloc.h $(SUPPORT_DIR)epsilon.h $(SUPPORT_DIR)arraylist.h $(SUPPORT_DIR)pagetable.h $(SUPPORT_DIR)qsort.h 

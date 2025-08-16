@@ -380,8 +380,8 @@ void walkStack(BSQMemoryTheadLocalInfo& tinfo) noexcept
     
     tinfo.loadNativeRootSet();
 
-    for(size_t i = 0; i < tinfo.native_stack_count; i++) {
-        checkPotentialPtr(tinfo.native_stack_contents[i], tinfo);
+    while(!tinfo.native_stack_contents.isEmpty()) {
+        checkPotentialPtr(tinfo.native_stack_contents.pop_front(), tinfo);
     }
 
     checkPotentialPtr(tinfo.native_register_contents.rax, tinfo);
