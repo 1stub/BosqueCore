@@ -39,6 +39,10 @@ inline void __attribute__((no_sanitize_address)) memcpy(uintptr_t* dst, const ui
     #pragma GCC diagnostic push
     #pragma GCC diagnostic ignored "-Wstringop-overread"
     #pragma GCC diagnostic ignored "-Warray-bounds"
+
+    assert(reinterpret_cast<uintptr_t>(dst) % alignof(uintptr_t) == 0);
+    assert(reinterpret_cast<uintptr_t>(src) % alignof(uintptr_t) == 0);
+
     for(size_t i = 0; i < N; i++) {
         dst[i] = src[i];
     }

@@ -22,14 +22,20 @@ BUILD := dev
 #also support epsilon to disable gc
 ALLOC := gc
 
+# no sanitize by default
+SANITIZE := false
+
+SANITIZE_FLAGS.false =
+SANITIZE_FLAGS.true = -fsanitize=address -fsanitize-recover=address -fsanitize=undefined -fsanitize-address-use-after-scope 
+
 CC=g++
-CSTDFLAGS=-Wall -Wextra -Wno-unused-parameter -Wuninitialized -Werror -std=gnu++20 -fno-exceptions -fno-rtti -fno-strict-aliasing -fno-omit-frame-pointer -fno-stack-protector
+CSTDFLAGS=-Wall -Wextra -Wno-unused-parameter -Wuninitialized -Werror -std=gnu++20 -fno-exceptions -fno-rtti -fno-strict-aliasing -fno-omit-frame-pointer -fno-stack-protector -fno-delete-null-pointer-checks -fno-optimize-sibling-calls 
 
 INTERNAL_FLAGS.gc= 
 INTERNAL_FLAGS.epsilon=-DEPSILON
 
-CFLAGS_OPT.dev=-O0 -g -ggdb 
-CFLAGS_OPT.release=-O2 -march=x86-64-v3 -fsanitize=address fsanitize-recover=address -fsanitize=undefined
+CFLAGS_OPT.dev=-O0 -g -ggdb ${SANITIZE_FLAGS.$(SANITIZE)}
+CFLAGS_OPT.release=-O2 -march=x86-64-v3 ${SANITIZE_FLAGS.$(SANITIZE)}
 CFLAGS=${CFLAGS_OPT.${BUILD}} ${CSTDFLAGS} ${INTERNAL_FLAGS.${ALLOC}}
 
 SUPPORT_HEADERS=$(RUNTIME_DIR)common.h $(SUPPORT_DIR)xalloc.h $(SUPPORT_DIR)epsilon.h $(SUPPORT_DIR)arraylist.h $(SUPPORT_DIR)pagetable.h $(SUPPORT_DIR)qsort.h 
@@ -49,6 +55,10 @@ NEED_CLEAN=clean
 else
 NEED_CLEAN=
 endif
+
+##
+## Lets add a `make run` command also (and maybe have this set ASAN runtime flags)
+##
 
 all: $(NEED_CLEAN) $(OUT_EXE)memex
 
