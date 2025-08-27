@@ -211,6 +211,8 @@ static void* forward(void* ptr, BSQMemoryTheadLocalInfo& tinfo)
 static inline void updateRef(void** obj, BSQMemoryTheadLocalInfo& tinfo)
 {
     void* ptr = *obj;
+    CHECK_INITIALIZED(ptr);
+
     int32_t fwd_index = GC_FWD_INDEX(ptr);
 
     // Root points to root case (may be a false root)
@@ -362,8 +364,15 @@ static void walkStack(BSQMemoryTheadLocalInfo& tinfo) noexcept
 
 static void markRef(BSQMemoryTheadLocalInfo& tinfo, void** slots) noexcept
 {
+    CHECK_INITIALIZED(*slots);
+
     MetaData* meta = GC_GET_META_DATA_ADDR(*slots);
     GC_INVARIANT_CHECK(meta != nullptr);
+
+    // For catching UB
+    if(*(uint8_t*)&meta->isyoung > 1 || *(uint8_t*)&meta->ismarked > 1) {
+        assert(false);
+    }
 
     if(GC_SHOULD_VISIT(meta)) { 
         GC_MARK_AS_MARKED(meta);
