@@ -532,6 +532,10 @@ recursive function emitBinLogicExpression(e: CPPAssembly::BinLogicExpression, ct
     }
 }
 
+function emitMapEntryConstructorExpression(e: CPPAssembly::MapEntryConstructorExpression, ctx: Context): String {
+
+}
+
 recursive function emitLogicActionAndExpression(e: CPPAssembly::LogicActionAndExpression, ctx: Context): String {
     let args = e.args.map<String>(fn(expr) => emitExpression[recursive](expr, ctx));
     return String::concat("(", String::joinAll(" && ", args), ")");
@@ -561,6 +565,18 @@ function emitCallTypeFunctionExpression(e: CPPAssembly::CallTypeFunctionExpressi
     let args = emitArguments(e.args, ctx); 
 
     return String::concat(name, "(", args, ")");
+}
+
+function emitCallTypeFunctionSpecialExpression(e: CPPAssembly::CallTypeFunctionSpecialExpression, ctx: Context): String {
+    let typefunc = ctx.asm.typefuncs.get(e.ikey);
+    let name = emitInvokeKey(typefunc.ikey, ctx);
+    let args = emitArguments(e.args, ctx); 
+
+    %%
+    %% TODO: name and exp and how to properly emit
+    %%
+
+    abort;
 }
 
 function emitPostfixAccessFromName(op: CPPAssembly::PostfixAccessFromName, ctx: Context): String {
@@ -633,6 +649,11 @@ function emitPostfixInvokeStatic(op: CPPAssembly::PostfixInvokeStatic, rootexp: 
     else {
         return String::concat(name, "(", thisarg, ", ", args, ")");       
     }
+}
+
+%% This might be funny
+function emitPostfixAssignFields(op: CPPAssembly::PostfixAssignFields, rootexp: String, ctx: Context): String {
+
 }
 
 function emitPostfixAccessSomeValue(op: CPPAssembly::PostfixAccessSomeValue, acc: String, baseType: CPPAssembly::TypeSignature, ctx: Context): String {
@@ -743,10 +764,15 @@ function emitPostfixOp(pop: CPPAssembly::PostfixOp, ctx: Context): String {
             | CPPAssembly::PostfixIsTest => { return String::concat(acc, emitITestAsTest($op.ttest, $op.baseType, ctx)); }
             | CPPAssembly::PostfixAsConvert => { return String::concat(acc, emitITestAsConvert($op.ttest.isnot, $op.ttest, $op.baseType.tkeystr, none, ctx).0); }
             | CPPAssembly::PostfixInvokeStatic => { return emitPostfixInvokeStatic($op, acc, ctx); } 
+            | CPPAssembly::PostfixAssignFields => { return emitPostfixAssignFields($op, acc, ctx); }
             | CPPAssembly::PostfixBoolConstant => { return if($op.value === true) then "true" else "false"; }
             | CPPAssembly::PostfixAccessSomeValue => { return emitPostfixAccessSomeValue($op, acc, pop.rootExp.etype, ctx); }
         }
     });
+}
+
+function emitConstructorPrimarySpecialMapEntryExpresison(cpsmee: CPPAssembly::ConstructorPrimarySpecialMapEntryExpression, ctx: Context): String {
+
 }
 
 function emitConstructorPrimarySpecialSomeExpression(cpsse: CPPAssembly::ConstructorPrimarySpecialSomeExpression, ctx: Context): String {
@@ -1002,6 +1028,15 @@ function emitBinaryKeyEqExpression(exp: CPPAssembly::BinaryKeyEqExpression, ctx:
     }
 }
 
+%% I BELIEVE these should be trivialy implemented with just <= and ==
+function emitKeyCmpEqualExpression(exp: CPPAssembly::KeyCmpEqualExpression, ctx: Context): String {
+
+}
+
+function emitKeyCmpLessExpression(exp: CPPAssembly::KeyCmpLessExpression, ctx: Context): String {
+
+}
+
 function emitLambdaParameters(p: List<CPPAssembly::LambdaParameterSignature>, ctx: Context): String {
     let params = p.map<String>(fn(param) => {
         let pname = emitIdentifier(param.pname);
@@ -1118,7 +1153,8 @@ function emitExpression(e: CPPAssembly::Expression, ctx: Context): String {
         %%| CPPAssembly::LetExpression => { abort; }
         | CPPAssembly::LambdaInvokeExpression => { return emitLambdaInvokeExpression($e, ctx); } 
         | CPPAssembly::CallNamespaceFunctionExpression => { return emitCallNamespaceFunctionExpression($e, ctx); }
-        | CPPAssembly::CallTypeFunctionExpression => { return emitCallTypeFunctionExpression($e, ctx); }      
+        | CPPAssembly::CallTypeFunctionExpression => { return emitCallTypeFunctionExpression($e, ctx); }
+        | CPPAssembly::CallTypeFunctionSpecialExpression => { return emitCallTypeFunctionSpecialExpression($e, ctx); }
         %%| CPPAssembly::CallRefInvokeStaticResolveExpression => { abort; }
         %%| CPPAssembly::CallRefInvokeVirtualExpression => { abort; } 
         | CPPAssembly::LogicActionAndExpression => { return emitLogicActionAndExpression[recursive]($e, ctx); }
@@ -1132,11 +1168,11 @@ function emitExpression(e: CPPAssembly::Expression, ctx: Context): String {
         | CPPAssembly::UnaryExpression => { return emitUnaryExpression[recursive]($e, ctx); }
         | CPPAssembly::BinaryArithExpression => { return emitBinaryArithExpression[recursive]($e, ctx); }
         | CPPAssembly::BinaryKeyEqExpression => { return emitBinaryKeyEqExpression($e, ctx); }
-        %%| CPPAssembly::BinaryKeyCmpEqualExpression => { abort; }
-        %%| CPPAssembly::BinaryKeyCmpLessExpression => { abort; }
+        | CPPAssembly::KeyCmpEqualExpression => { return emitKeyCmpEqualExpression($e, ctx); }
+        | CPPAssembly::KeyCmpLessExpression => { return emitKeyCmpLessExpression($e, ctx); }
         | CPPAssembly::BinaryNumericExpression => { return emitBinaryNumericExpression[recursive]($e, ctx); }
         | CPPAssembly::BinLogicExpression => { return emitBinLogicExpression[recursive]($e, ctx); }
-        %%| CPPAssembly::MapEntryConstructorExpression => { abort; }
+        | CPPAssembly::MapEntryConstructorExpression => { return emitMapEntryConstructorExpression($e, ctx); }
         | CPPAssembly::IfExpression => { return emitIfExpression($e, ctx); }
     }
 }
