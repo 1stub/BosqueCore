@@ -533,7 +533,7 @@ recursive function emitBinLogicExpression(e: CPPAssembly::BinLogicExpression, ct
 }
 
 function emitMapEntryConstructorExpression(e: CPPAssembly::MapEntryConstructorExpression, ctx: Context): String {
-
+    return "";
 }
 
 recursive function emitLogicActionAndExpression(e: CPPAssembly::LogicActionAndExpression, ctx: Context): String {
@@ -568,15 +568,16 @@ function emitCallTypeFunctionExpression(e: CPPAssembly::CallTypeFunctionExpressi
 }
 
 function emitCallTypeFunctionSpecialExpression(e: CPPAssembly::CallTypeFunctionSpecialExpression, ctx: Context): String {
+%*
     let typefunc = ctx.asm.typefuncs.get(e.ikey);
     let name = emitInvokeKey(typefunc.ikey, ctx);
     let args = emitArguments(e.args, ctx); 
-
+*%
     %%
     %% TODO: name and exp and how to properly emit
     %%
 
-    abort;
+    return "";
 }
 
 function emitPostfixAccessFromName(op: CPPAssembly::PostfixAccessFromName, ctx: Context): String {
@@ -653,7 +654,7 @@ function emitPostfixInvokeStatic(op: CPPAssembly::PostfixInvokeStatic, rootexp: 
 
 %% This might be funny
 function emitPostfixAssignFields(op: CPPAssembly::PostfixAssignFields, rootexp: String, ctx: Context): String {
-
+    return "";
 }
 
 function emitPostfixAccessSomeValue(op: CPPAssembly::PostfixAccessSomeValue, acc: String, baseType: CPPAssembly::TypeSignature, ctx: Context): String {
@@ -772,7 +773,7 @@ function emitPostfixOp(pop: CPPAssembly::PostfixOp, ctx: Context): String {
 }
 
 function emitConstructorPrimarySpecialMapEntryExpresison(cpsmee: CPPAssembly::ConstructorPrimarySpecialMapEntryExpression, ctx: Context): String {
-
+    return "";
 }
 
 function emitConstructorPrimarySpecialSomeExpression(cpsse: CPPAssembly::ConstructorPrimarySpecialSomeExpression, ctx: Context): String {
@@ -1030,11 +1031,11 @@ function emitBinaryKeyEqExpression(exp: CPPAssembly::BinaryKeyEqExpression, ctx:
 
 %% I BELIEVE these should be trivialy implemented with just <= and ==
 function emitKeyCmpEqualExpression(exp: CPPAssembly::KeyCmpEqualExpression, ctx: Context): String {
-
+    return "";
 }
 
 function emitKeyCmpLessExpression(exp: CPPAssembly::KeyCmpLessExpression, ctx: Context): String {
-
+    return "";
 }
 
 function emitLambdaParameters(p: List<CPPAssembly::LambdaParameterSignature>, ctx: Context): String {

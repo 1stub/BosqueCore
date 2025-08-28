@@ -324,7 +324,11 @@ entity CPPTransformer {
     }
 
     method transformMapEntryConstructorExpression(expr: BSQAssembly::MapEntryConstructorExpression): CPPAssembly::MapEntryConstructorExpression {
+        let etype = this.convertTypeSignature(expr.etype);
+        let kexp = this.transformExpressionToCpp(expr.kexp);
+        let vexp = this.transformExpressionToCpp(expr.vexp);
 
+        return CPPAssembly::MapEntryConstructorExpression{ etype, kexp, vexp };
     }
 
     recursive method transformLogicActionAndExpression(expr: BSQAssembly::LogicActionAndExpression): CPPAssembly::LogicActionAndExpression {
@@ -376,10 +380,10 @@ entity CPPTransformer {
         let ikey = CPPTransformNameManager::convertInvokeKey(expr.ikey);
         let ttype = CPPTransformNameManager::convertNominalTypeSignature(expr.ttype);
         let resolvedDeclType = CPPTransformNameManager::convertNominalTypeSignature(expr.resolvedDeclType);
-        %%expr
-        %%name
+        let name = CPPTransformNameManager::convertIdentifier(expr.name);
+        let exp = this.transformExpressionToCpp(expr.exp);
         
-        return CPPAssembly::CallTypeFunctionSpecialExpression{ ts, ikey, ttype, resolvedDeclType, expr, name };
+        return CPPAssembly::CallTypeFunctionSpecialExpression{ ts, ikey, ttype, resolvedDeclType, name, exp };
     }
 
     method transformITestType(it: BSQAssembly::ITestType, isnot: Bool): CPPAssembly::ITestType {
@@ -424,7 +428,19 @@ entity CPPTransformer {
     }
 
     method transformPostfixAssignFields(op: BSQAssembly::PostfixAssignFields, baseType: CPPAssembly::TypeSignature): CPPAssembly::PostfixAssignFields {
+        let declOnType = this.convertTypeSignature(op.declOnType)@<CPPAssembly::NominalTypeSignature>;
+        let updates = op.updates.map<(|CPPAssembly::NominalTypeSignature, CPPAssembly::Identifier, CPPAssembly::NominalTypeSignature, CPPAssembly::Expression|)>(
+            fn(upd) => {
+                let declaredInType = this.convertTypeSignature(upd.0);
+                let fname = CPPTransformNameManager::convertIdentifier(upd.1);
+                let ftype = this.convertTypeSignature(upd.2);
+                let update = this.transformExpressionToCpp(upd.3);
 
+                return declaredInType@<CPPAssembly::NominalTypeSignature>, fname, ftype@<CPPAssembly::NominalTypeSignature>, update;
+            }
+        );
+
+        return CPPAssembly::PostfixAssignFields{ baseType, declOnType, updates };
     }
 
     method transformPostfixOpImpl(op: BSQAssembly::PostfixOperation): CPPAssembly::PostfixOperation {
@@ -459,7 +475,13 @@ entity CPPTransformer {
     }
 
     method transformConstructorPrimarySpecialMapEntryExpression(cpsmee: BSQAssembly::ConstructorPrimarySpecialMapEntryExpression): CPPAssembly::ConstructorPrimarySpecialMapEntryExpression {
+        let etype = this.convertTypeSignature(cpsmee.etype);
+        let ctype = CPPTransformNameManager::convertNominalTypeSignature(cpsmee.ctype);
+        let value = this.transformExpressionToCpp(cpsmee.value);
+        let keytype = this.convertTypeSignature(cpsmee.keytype);
+        let valuetype = this.convertTypeSignature(cpsmee.valuetype);
 
+        return CPPAssembly::ConstructorPrimarySpecialMapEntryExpression{ etype, ctype, value, keytype, valuetype };
     }
 
     method transformConstructorPrimarySpecialSomeExpression(cpsse: BSQAssembly::ConstructorPrimarySpecialSomeExpression): CPPAssembly::ConstructorPrimarySpecialSomeExpression {
@@ -512,14 +534,14 @@ entity CPPTransformer {
     }
 
     method transformConstructorPrimaryMapExpression(cpme: BSQAssembly::ConstructorPrimaryMapExpression): CPPAssembly::ConstructorPrimaryMapExpression {
-        let etype = this.convertTypeSignature(cple.etype);
-        let ctype = CPPTransformNameManager::convertNominalTypeSignature(cple.ctype);
-        let elemtype = this.convertTypeSignature(cple.elemtype);
-        let args = cple.args.map<CPPAssembly::Expression>(fn(arg) => this.transformExpressionToCpp(arg.exp));
+        let etype = this.convertTypeSignature(cpme.etype);
+        let ctype = CPPTransformNameManager::convertNominalTypeSignature(cpme.ctype);
+        let elemtype = this.convertTypeSignature(cpme.elemtype);
+        let args = cpme.args.map<CPPAssembly::Expression>(fn(arg) => this.transformExpressionToCpp(arg.exp));
         let keytype = this.convertTypeSignature(cpme.keytype);
         let valuetype = this.convertTypeSignature(cpme.valuetype);
 
-        return CPPAssembly::ConstructorPrimaryListExpression{ etype, ctype, elemtype, args, keytype, valuetype };
+        return CPPAssembly::ConstructorPrimaryMapExpression{ etype, ctype, elemtype, args, keytype, valuetype };
     }
 
     method transformConstructorPrimaryCollectionSingletonsExpression(cpcse: BSQAssembly::ConstructorPrimaryCollectionSingletonsExpression): CPPAssembly::ConstructorPrimaryCollectionSingletonsExpression {
@@ -635,23 +657,24 @@ entity CPPTransformer {
         }
     }
 
-    %% I really hope these are explicit
     method transformKeyCmpEqualExpression(exp: BSQAssembly::KeyCmpEqualExpression): CPPAssembly::KeyCmpEqualExpression {
+        let etype = this.convertTypeSignature(exp.etype);
         let ktype = this.convertTypeSignature(exp.ktype);
         let opertype = this.convertTypeSignature(exp.opertype);
         let lhs = this.transformExpressionToCpp(exp.lhs);
         let rhs = this.transformExpressionToCpp(exp.rhs);
 
-        return CPPAssembly::KeyCmpEqualExpression{ ktype, opertype, lhs, rhs };
+        return CPPAssembly::KeyCmpEqualExpression{ etype, ktype, opertype, lhs, rhs };
     }
 
     method transformKeyCmpLessExpression(exp: BSQAssembly::KeyCmpLessExpression): CPPAssembly::KeyCmpLessExpression {
+        let etype = this.convertTypeSignature(exp.etype);
         let ktype = this.convertTypeSignature(exp.ktype);
         let opertype = this.convertTypeSignature(exp.opertype);
         let lhs = this.transformExpressionToCpp(exp.lhs);
         let rhs = this.transformExpressionToCpp(exp.rhs);
 
-        return CPPAssembly::KeyCmpLessExpression{ ktype, opertype, lhs, rhs };
+        return CPPAssembly::KeyCmpLessExpression{ etype, ktype, opertype, lhs, rhs };
     }
 
     method transformConstructorLambdaExpression(exp: BSQAssembly::ConstructorLambdaExpression): CPPAssembly::ConstructorLambdaExpression {
@@ -747,7 +770,7 @@ entity CPPTransformer {
             | BSQAssembly::BinaryArithExpression => { return this.transformBinaryArithExpression[recursive]($expr); }
             | BSQAssembly::BinaryKeyEqExpression => { return this.transformBinaryKeyEqExpression($expr); }
             | BSQAssembly::KeyCmpEqualExpression => { return this.transformKeyCmpEqualExpression($expr); }
-            | BSQAssembly::KeyCmpLessExpression => { return this.transformKeyCmpEqualExpression($expr); }
+            | BSQAssembly::KeyCmpLessExpression => { return this.transformKeyCmpLessExpression($expr); }
             | BSQAssembly::BinaryNumericExpression => { return this.transformBinaryNumericCompareExpression[recursive]($expr); }
             | BSQAssembly::BinLogicExpression => { return this.transformBinLogicExpression[recursive]($expr); }
             | BSQAssembly::MapEntryConstructorExpression => { return this.transformMapEntryConstructorExpression($expr); }

@@ -366,6 +366,11 @@ BinLogicAndExpression { }
 | BinLogicIFFExpression { }
 ;
 
+entity MapEntryConstructorExpression provides Expression {
+    field kexp: Expression;
+    field vexp: Expression;
+}
+
 entity LambdaInvokeArgumentInfo {
     field name: Identifier;
     field args: List<Expression>;
@@ -418,6 +423,10 @@ of
 ConstructorPrimarySpecialSomeExpression {
     field ofttype: TypeSignature;
 }
+| ConstructorPrimarySpecialMapEntryExpression {
+    field keytype: TypeSignature;
+    field valuetype: TypeSignature;
+} 
 | ConstructorPrimarySpecialOkExpression { %% TODO: Not Implemented
     field ofttype: TypeSignature;
     field ofetype: TypeSignature;
