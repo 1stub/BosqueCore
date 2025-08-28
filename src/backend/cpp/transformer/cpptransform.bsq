@@ -727,6 +727,10 @@ entity CPPTransformer {
         return CPPAssembly::LiteralUnicodeCharExpression{ etype, exp.value };
     }
 
+    method transformCRegexExpression(exp: BSQAssembly::LiteralCRegexExpression): CPPAssembly::LiteralCRegexExpression {
+
+    }
+
     recursive method transformExpressionToCpp(expr: BSQAssembly::Expression): CPPAssembly::Expression {
         match(expr)@ {
             BSQAssembly::LiteralNoneExpression => { return this.transformLiteralNoneExpression($expr); }
@@ -737,7 +741,7 @@ entity CPPTransformer {
             | BSQAssembly::LiteralStringExpression => { return this.transformLiteralStringExpression($expr); }
             | BSQAssembly::LiteralCCharExpression => { return this.transformLiteralCCharExpression($expr); }
             | BSQAssembly::LiteralUnicodeCharExpression => { return this.transformLiteralUnicodeCharExpression($expr); }
-            | BSQAssembly::LiteralCRegexExpression => { abort; }
+            | BSQAssembly::LiteralCRegexExpression => { return this.transformCRegexExpression($expr); }
             | BSQAssembly::LiteralRegexExpression => { abort; }
             | BSQAssembly::LiteralTypeDeclValueExpression => { abort; }
             | BSQAssembly::AccessNamespaceConstantExpression => { abort; }

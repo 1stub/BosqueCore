@@ -250,6 +250,12 @@ entity LiteralUnicodeCharExpression provides Expression {
     field value: UnicodeChar;
 }
 
+%% Hmmmm I have no idea how emitting regex will work
+entity LiteralCRegexExpression provides Expression {
+    field bsqir: CRegex;
+    field smtlib: CString;
+}
+
 entity LogicActionAndExpression provides Expression {
     field args: List<Expression>;
 }
