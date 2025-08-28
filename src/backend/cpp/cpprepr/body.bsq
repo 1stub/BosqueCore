@@ -250,10 +250,18 @@ entity LiteralUnicodeCharExpression provides Expression {
     field value: UnicodeChar;
 }
 
-%% Hmmmm I have no idea how emitting regex will work
+%% For the time being we will emit these as const CChar*
 entity LiteralCRegexExpression provides Expression {
-    field bsqir: CRegex;
-    field smtlib: CString;
+    field value: CString;
+}
+
+entity LiteralRegexExpression provides Expression {
+    field value: CString;
+}
+
+entity LiteralTypeDeclValueExpression provides Expression {
+    field value: Expression;
+    field constype: NominalTypeSignature;
 }
 
 entity LogicActionAndExpression provides Expression {

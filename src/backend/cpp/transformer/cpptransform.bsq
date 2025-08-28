@@ -728,7 +728,21 @@ entity CPPTransformer {
     }
 
     method transformCRegexExpression(exp: BSQAssembly::LiteralCRegexExpression): CPPAssembly::LiteralCRegexExpression {
+        let etype = this.convertTypeSignature(exp.etype);
+        return CPPAssembly::LiteralCRegexExpression{ etype, exp.smtlib };
+    }
 
+    method transformRegexExpression(exp: BSQAssembly::LiteralRegexExpression): CPPAssembly::LiteralRegexExpression {
+        let etype = this.convertTypeSignature(exp.etype);
+        return CPPAssembly::LiteralRegexExpression{ etype, exp.smtlib };
+    }   
+
+    method transformLiteralTypeDeclValueExpression(exp: BSQAssembly::LiteralTypeDeclValueExpression): CPPAssembly::LiteralTypeDeclValueExpression {
+        let etype = this.convertTypeSignature(exp.etype);       
+        let value = this.transformExpressionToCpp(exp.value);
+        let constype = this.convertTypeSignature(exp.constype)@<CPPAssembly::NominalTypeSignature>;
+
+        return CPPAssembly::LiteralTypeDeclValueExpression{ etype, value, constype };
     }
 
     recursive method transformExpressionToCpp(expr: BSQAssembly::Expression): CPPAssembly::Expression {
@@ -742,8 +756,8 @@ entity CPPTransformer {
             | BSQAssembly::LiteralCCharExpression => { return this.transformLiteralCCharExpression($expr); }
             | BSQAssembly::LiteralUnicodeCharExpression => { return this.transformLiteralUnicodeCharExpression($expr); }
             | BSQAssembly::LiteralCRegexExpression => { return this.transformCRegexExpression($expr); }
-            | BSQAssembly::LiteralRegexExpression => { abort; }
-            | BSQAssembly::LiteralTypeDeclValueExpression => { abort; }
+            | BSQAssembly::LiteralRegexExpression => { return this.transformRegexExpression($expr); }
+            | BSQAssembly::LiteralTypeDeclValueExpression => { return this.transformLiteralTypeDeclValueExpression($expr); }
             | BSQAssembly::AccessNamespaceConstantExpression => { abort; }
             | BSQAssembly::AccessStaticFieldExpression => { return this.transformAccessStaticFieldExpression($expr); }
             | BSQAssembly::AccessEnumExpression => { return this.transformAccessEnumExpression($expr); }
@@ -1206,6 +1220,11 @@ entity CPPTransformer {
                         let unicoderope_tk = BSQAssembly::TypeKey::from('UnicodeRope'); 
                         matchedType = this.generateTypeInfo(unicoderope_tk, tic).0;
                     }
+                    
+                    %%
+                    %% Blah blah blah regex...
+                    %%
+                    
                     | _ => { abort; } %% Not supported by cpp emitter yet!
                 }
 
