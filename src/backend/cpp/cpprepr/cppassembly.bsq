@@ -119,6 +119,15 @@ entity EnumTypeDecl provides AbstractEntityTypeDecl {
     field members: List<CString>;
 }
 
+entity TypedeclTypeDecl provides AbstractEntityTypeDecl {
+    field valuetype: NominalTypeSignature;
+}
+
+entity TypedeclStringOfTypeDecl provides AbstractEntityTypeDecl {
+    field valuetype: NominalTypeSignature;
+    field ofcheck: Expression;
+}
+
 entity DatatypeMemberEntityTypeDecl provides AbstractEntityTypeDecl {
     field fields: List<MemberFieldDecl>;
     field parentTypeDecl: NominalTypeSignature;
@@ -229,6 +238,8 @@ entity NamespaceDecl {
     field overmethods: List<(|InvokeKey, TypeKey|)>; 
 
     field enums: List<TypeKey>;
+    field typedecls: List<TypeKey>;
+    field stringoftypedecls: List<TypeKey>;
 
     field alltypes: List<TypeKey>; %%Very useful in emission
 }
@@ -249,6 +260,8 @@ entity Assembly {
     field overmethods: Map<InvokeKey, MethodDeclOverride>;
 
     field enums: Map<TypeKey, EnumTypeDecl>;
+    field typedecls: Map<TypeKey, TypedeclTypeDecl>;
+    field stringoftypedecls: Map<TypeKey, TypedeclStringOfTypeDecl>;
 
     field primitives: Map<TypeKey, PrimitiveEntityTypeDecl>;
     field constructables: Map<TypeKey, ConstructableTypeDecl>;
