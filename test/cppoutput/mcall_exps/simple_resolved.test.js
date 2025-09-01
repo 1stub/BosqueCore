@@ -49,8 +49,8 @@ describe ("CPP Emit Evaluate -- builtin methods", () => {
     });
 
     it("should exec cstring(rope) removePrefixString builtin", function () {
-        runMainCode("public function main(): Bool { return 'HelloHello, World'.removePrefixString('Hello') === 'Hello, World!'; }", "true");
-        runMainCode("public function main(): Bool { return '3.14159.14159'.removePrefixString('3.14159') === '3.14159'; }", "true");
+        runMainCode("public function main(): Bool { return 'HelloHello, World!'.removePrefixString('Hello') === 'Hello, World!'; }", "true");
+        runMainCode("public function main(): Bool { return '3.141593.14159'.removePrefixString('3.14159') === '3.14159'; }", "true");
         runMainCode("public function main(): Bool { return 'Lorem ipsum dolor sit amet, consectetur adipiscing elit'.removePrefixString('Lorem ipsum dolor sit amet, ') === 'consectetur adipiscing elit'; }", "true");
     });
 });

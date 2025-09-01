@@ -404,26 +404,17 @@ namespace CRopeOps {
     }
 
     function append(t: Rope, v: CCharBuffer): Rope {
-        var tt: Rope;
         match(t)@ {
             BBLeaf => { 
-                tt = Rope::createLeaf(v); 
+                return Rope::createLeaf(v); 
             }
             | Leaf => {
-                tt = append_helper(t, t, v);
+                return append_helper(t, t, v);
             }
             | Node => {
-                tt = append_helper(t, $t.l, v);
+                return append_helper(t, $t.l, v);
             }
         }
-        
-        let nt = tt@<Node>;    
-        let ntt = if(nt.c === Color#Red) 
-            then Rope::createNode(Color#Black, nt.l, nt.r) 
-            else nt;
-    
-        return ntt;
-        
     }
 
     function prepend(r1: Rope, r2: Rope): Rope {
