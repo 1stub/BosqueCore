@@ -677,7 +677,14 @@ function emitITestType(it: CPPAssembly::ITestType, baseType: CPPAssembly::TypeSi
                 else String::concat(accessor, " == &", ttype, "Type");
         }
         else {
-            abort; %% Handle case where both are abstract (vtable lookup likely)
+            %%
+            %% TODO: We will likely need to do a vtable lookup here!
+            %% The type we are testinf for within the ITest is an option here
+            %% (or possibly datatype, we need to see if the lhs of the itest)
+            %% exists in vtable of itest type
+            %%
+         
+            return ""; 
         }
     }
 }
@@ -1169,6 +1176,9 @@ function emitMapEntryConstructorExpression(exp: CPPAssembly::MapEntryConstructor
     return String::concat(metype, "{ ", key, ", ", value, " }");
 }
 
+%%
+%% TODO: Need to figure out necessary representation!
+%%
 function emitLiteralTypeDeclValueExpression(exp: CPPAssembly::LiteralTypeDeclValueExpression, ctx: Context): String {
     return "";
 }
@@ -1185,7 +1195,7 @@ function emitExpression(e: CPPAssembly::Expression, ctx: Context): String {
         | CPPAssembly::LiteralStringExpression => { return emitLiteralStringExpression($e); }
         | CPPAssembly::LiteralCRegexExpression => { return emitLiteralCRegexExpression($e); }
         | CPPAssembly::LiteralRegexExpression => { return emitLiteralRegexExpression($e); }
-        | CPPAssembly::LiteralTypeDeclValueExpression => { abort; }
+        | CPPAssembly::LiteralTypeDeclValueExpression => { return emitLiteralTypeDeclValueExpression($e, ctx); }
         %%| CPPAssembly::AccessNamespaceConstantExpression => { abort; }
         | CPPAssembly::AccessStaticFieldExpression => { return emitAccessStaticFieldExpression($e, ctx); } 
         | CPPAssembly::AccessEnumExpression => { return emitAccessEnumExpression($e, ctx); }
@@ -1519,7 +1529,7 @@ function emitStatement(stmt: CPPAssembly::Statement, ctx: Context, indent: Strin
         | CPPAssembly::IfElifElseStatement => { return emitIfElifElseStatement($stmt, ctx, indent); }
         | CPPAssembly::SwitchStatement => { return emitSwitchStatement($stmt, ctx, indent); }
         | CPPAssembly::MatchStatement => { return emitMatchStatement($stmt, ctx, indent); }
-        %%| CPPAssembly::AbortStatement => { abort; }
+        | CPPAssembly::AbortStatement => { return emitAbortStatement($stmt, ctx, indent); }
         | CPPAssembly::AssertStatement => { return emitAssertStatement($stmt, ctx, indent); }
         %%| CPPAssembly::ValidateStatement => { abort; }
         %%| CPPAssembly::DebugStatement => { abort; }
@@ -1966,6 +1976,13 @@ function emitCollectionTypeDecl(ctd: CPPAssembly::CollectionTypeDecl, ctx: Conte
     abort; %% Non supported collection type!
 }
 
+%%
+%% TODO: Need to figure our how we want to emit these!
+%%
+function emitTypedeclStringOfTypeDecl(ctd: CPPAssembly::TypedeclStringOfTypeDecl, ctx: Context, indent: String): String {
+    return "";
+}
+
 function emitAbstractNominalTypeDecl(ant: CPPAssembly::AbstractNominalTypeDecl, declaredIn: CPPAssembly::TypeKey, ctx: Context, indent: String): String {
     %% The entries who need a vtable should manually do it
     match(ant)@ {
@@ -1977,6 +1994,7 @@ function emitAbstractNominalTypeDecl(ant: CPPAssembly::AbstractNominalTypeDecl, 
         | CPPAssembly::DatatypeTypeDecl => { return emitDatatypeTypeDecl($ant, ctx, indent); } 
         | CPPAssembly::EnumTypeDecl => { return emitEnumTypeDecl($ant, ctx, indent); }
         | CPPAssembly::PrimitiveEntityTypeDecl => { return ""; } %% We just need PrimitiveEntityTypeDecl's methods
+        | CPPAssembly::TypedeclStringOfTypeDecl => { return emitTypedeclStringOfTypeDecl($ant, ctx, indent); }
     }
 }
 
