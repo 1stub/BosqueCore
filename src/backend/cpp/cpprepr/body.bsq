@@ -1,5 +1,9 @@
 namespace CPPAssembly;
 
+%%
+%% NOTE: The interaction between lambdaparam and typesig
+%% creates a circular dependency while generateing typeinfo!
+%%
 entity LambdaParameterSignature {
     field pname: Identifier;
     field ptype: TypeSignature;

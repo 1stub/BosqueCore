@@ -1249,6 +1249,12 @@ entity CPPTransformer {
                         let unicoderope_tk = BSQAssembly::TypeKey::from('UnicodeRope'); 
                         matchedType = this.generateTypeInfo(unicoderope_tk, tic).0;
                     }
+
+                    %%
+                    %% TODO: Regex needs a proper representation! Right now we have it always accepting.
+                    %%                    
+                    | 'CRegex'<BSQAssembly::TypeKey> => { matchedType = CPPAssembly::TypeInfo{ tic.tid, 0n, 0n, '', cpptkey, CPPAssembly::Tag#Value }; }
+                    | 'Regex'<BSQAssembly::TypeKey> =>  { matchedType = CPPAssembly::TypeInfo{ tic.tid, 0n, 0n, '', cpptkey, CPPAssembly::Tag#Value }; }
                     | _ => { abort; } %% Not supported by cpp emitter yet!
                 }
 
@@ -1277,7 +1283,6 @@ entity CPPTransformer {
                         let ktypeinfo, ntic = this.generateFieldInfo(some($ant.ktype), none, false, tic);
                         let vtypeinfo, nntic = this.generateFieldInfo(some($ant.vtype), none, false, ntic);
 
-                        %% Lets make this a method!
                         let ktypemask, ktypeslots, ktypesize = this.getCorrectSizeAndMask(ktypeinfo);
                         let vtypemask, vtypeslots, vtypesize = this.getCorrectSizeAndMask(vtypeinfo); 
 
@@ -1332,8 +1337,15 @@ entity CPPTransformer {
 
                     abort;
                 }
+                %%
+                %% TODO: We should likely have this alias CString
+                %% Currently written as so to keep things moving closer
+                %% to emission
+                %%
                 elif(this.bsqasm.stringoftypedecls.has(typekey)) {
-                    abort;
+                    let std_tinfo = CPPAssembly::TypeInfo{ tic.tid, 0n, 0n, '', cpptkey, CPPAssembly::Tag#Value };
+
+                    return std_tinfo, tic.update(cpptkey, std_tinfo); 
                 }
                 elif(this.bsqasm.enums.has(typekey)) { %% For now we will assume our enums cannot exceed 8 bytes 
                     let etdtinfo = CPPAssembly::TypeInfo{ tic.tid, 8n, 1n, '0', cpptkey, CPPAssembly::Tag#Value };
@@ -1345,11 +1357,21 @@ entity CPPTransformer {
             }
             elif(this.bsqasm.isNominalTypeConcept(typekey)) {
                 if(this.bsqasm.concepts.has(typekey) || this.bsqasm.datatypes.has(typekey)) {
-                    let mfc, ntag, ntic = this.findLargestSubtypeAndTag(ant@<BSQAssembly::AbstractConceptTypeDecl>, tic);
+                    %%
+                    %% The placeholder typeinfo exists here to prevent infinite
+                    %% self recursion on concepts containing themselfs as a field
+                    %% in one of their subtypes (look at TypeSignature in body.bsq)
+                    %%
+                    let placeholder = CPPAssembly::TypeInfo{ tic.tid, 8n, 1n, '1', cpptkey, CPPAssembly::Tag#Ref };
+                    let placeholder_tic = tic.update(cpptkey, placeholder);
+
+                    let mfc, ntag, ntic = this.findLargestSubtypeAndTag(ant@<BSQAssembly::AbstractConceptTypeDecl>, placeholder_tic);
                     let ptrmask = CPPTransformNameManager::repeatCString('0', mfc, '2');
                     let matchedType = CPPAssembly::TypeInfo{ ntic.tid, 8n + (mfc * 8n), mfc + 1n, ptrmask, cpptkey, ntag }; 
                     
-                    return matchedType, ntic.update(cpptkey, matchedType);
+                    let ntinfos = ntic.tinfos.delete(cpptkey);
+                    let nntic = ntic[tinfos=ntinfos];
+                    return matchedType, nntic.update(cpptkey, matchedType);
                 }
                 elif(this.bsqasm.pconcepts.has(typekey)) {
                     if(ant)@<BSQAssembly::OptionTypeDecl> {

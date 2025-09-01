@@ -306,6 +306,12 @@ entity Assembly {
         elif(this.concepts.has(tkey)) {
             return this.concepts.get(tkey);
         }
+        elif(this.typedecls.has(tkey)) {
+            return this.typedecls.get(tkey);
+        }
+        elif(this.stringoftypedecls.has(tkey)) {
+            return this.stringoftypedecls.get(tkey);
+        }
         else {
             abort; %% Non suported typekey!
         }
