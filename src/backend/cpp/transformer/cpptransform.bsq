@@ -439,6 +439,12 @@ entity CPPTransformer {
         return CPPAssembly::PostfixAssignFields{ baseType, declOnType, updates };
     }
 
+    method transformPostfixWidenConvert(op: BSQAssembly::PostfixWidenConvert, baseType: CPPAssembly::TypeSignature): CPPAssembly::PostfixWidenConvert {
+        let trgttype = this.convertTypeSignature(op.trgttype);
+
+        return CPPAssembly::PostfixWidenConvert{ baseType, trgttype };
+    }
+
     method transformPostfixOpImpl(op: BSQAssembly::PostfixOperation): CPPAssembly::PostfixOperation {
         let baseType = this.convertTypeSignature(op.baseType);
         match(op)@ {
@@ -454,7 +460,7 @@ entity CPPTransformer {
             | BSQAssembly::PostfixBoolConstant => { return CPPAssembly::PostfixBoolConstant{ baseType, $op.value }; }
             | BSQAssembly::PostfixNop => { abort; }
             | BSQAssembly::PostfixAbort => { abort; }
-            | BSQAssembly::PostfixWidenConvert => { abort; }
+            | BSQAssembly::PostfixWidenConvert => { return this.transformPostfixWidenConvert($op, baseType); }
             | BSQAssembly::PostfixAccessSomeValue => { return CPPAssembly::PostfixAccessSomeValue{ baseType }; }
             | BSQAssembly::PostfixLiteralNoneValue => { abort; }
         }
@@ -1700,7 +1706,7 @@ entity CPPTransformer {
                     fn(decl) => {
                         let npconcepts = decl.pconcepts.pushBack(cpptk);
                         let nalltypes = decl.alltypes.pushBack(cpptk);
-                        let ndecl = transformer.updateNSMethods(decl, cppctd@<CPPAssembly::AbstractNominalTypeDecl>);
+                        let ndecl = transformer.updateNSMethods(decl, cpppc@<CPPAssembly::AbstractNominalTypeDecl>);
 
                         return ndecl[pconcepts=npconcepts, alltypes=nalltypes];
                     });                     

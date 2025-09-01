@@ -661,6 +661,11 @@ function emitPostfixAccessSomeValue(op: CPPAssembly::PostfixAccessSomeValue, acc
     return String::concat(acc, ".value"); 
 }
 
+%% Not totally sure what this looks like
+function emitPostfixWidenConvert(op: CPPAssembly::PostfixWidenConvert, acc: String, ctx: Context): String {
+    return acc;
+}
+
 function emitITestType(it: CPPAssembly::ITestType, baseType: CPPAssembly::TypeSignature, ctx: Context): String {
     %% For now we only support ITests where both types are concrete
     if(ctx.asm.isNominalTypeConcrete(it.ttype.tkeystr) && ctx.asm.isNominalTypeConcrete(baseType.tkeystr)) {
@@ -775,6 +780,7 @@ function emitPostfixOp(pop: CPPAssembly::PostfixOp, ctx: Context): String {
             | CPPAssembly::PostfixAssignFields => { return emitPostfixAssignFields($op, acc, ctx); }
             | CPPAssembly::PostfixBoolConstant => { return if($op.value === true) then "true" else "false"; }
             | CPPAssembly::PostfixAccessSomeValue => { return emitPostfixAccessSomeValue($op, acc, pop.rootExp.etype, ctx); }
+            | CPPAssembly::PostfixWidenConvert => { return emitPostfixWidenConvert($op, acc, ctx); }
         }
     });
 }
@@ -1557,6 +1563,8 @@ function emitBuiltinBodyImplementation(body: CPPAssembly::BuiltinBodyImplementat
         | "ccharbuffer_maxsize" => { return String::concat(indent, "    return __CoreCpp::Nat(__CoreCpp::maxCCharBufferSize);%n;"); }
         | "ccharbuffer_equal" => { return String::concat(indent, "    return __CoreCpp::cbufferEqual(cb1, cb2);%n;"); }
         | "ccharbuffer_less" => { return String::concat(indent, "    return __CoreCpp::cbufferLess(cb1, cb2);%n;"); }
+        | "ccharbuffer_remove" => { return String::concat(indent, "    return __CoreCpp::cbufferRemove(cb, pre);%n;"); }
+        | "ccharbuffer_isprefix" => { return String::concat(indent, "    return __CoreCpp::cbufferIsPrefix(cb, pre);%n;"); }
         | "nat_to_ccharbuffer" => { return String::concat(indent, "    return __CoreCpp::cbufferFromNat(v);%n;"); }
         | "ccharbuffer_merge" => { return String::concat(indent, "    return __CoreCpp::cbufferMerge(cb1, cb2);%n;"); }
         | "ccharbuffer_remainder" => { return String::concat(indent, "    return __CoreCpp::cbufferRemainder(cb, split);%n;"); }
@@ -1577,8 +1585,9 @@ function emitBuiltinBodyImplementation(body: CPPAssembly::BuiltinBodyImplementat
         | "unicodecharbuffer_remainder" => { return String::concat(indent, "    return __CoreCpp::ubufferRemainder(ub, split);%n;"); }        
         | "cstring_concat2" => { return String::concat(indent, "    return Core::CRopeOps::s_crope_concat2(s1, s2);%n;"); }
         | "cstring_empty" => { return String::concat(indent, "    return Core::CRopeOps::s_crope_empty(s);%n;"); }
-        | "cstring_remove_prefix_string" => { return String::concat(indent, "    return Core::CRopeOps::s_crope_remove_prefix_string(c, s);%n;"); }
+        | "cstring_remove_prefix_string" => { return String::concat(indent, "    return Core::CRopeOps::s_crope_remove_prefix_crope(s, prefix);%n;"); }
         | "cstring_prepend" => { return String::concat(indent, "    return Core::CRopeOps::s_crope_prepend(s, prefix);%n;"); }
+        | "cstring_starts_with_string" => { return String::concat(indent, "    return Core::CRopeOps::s_crope_starts_with_crope(s, prefix);%n;"); }
         | "string_concat2" => { return String::concat(indent, "    return Core::CRopeOps::s_unicoderope_concat2(s1, s2);%n;"); }
         | "string_empty" => { return String::concat(indent, "    return Core::CRopeOps::s_unicoderope_empty(s);%n;"); }
         | "s_nat_to_cstring" => { return String::concat(indent, "    return Core::CRopeOps::s_nat_to_crope(v);%n;"); }
