@@ -45,6 +45,10 @@ namespace CRopeOps {
         return XCore::s_createDirect<Rope, CRope>(append(r.value, buf));
     }
 
+    function s_crope_prepend(r1: CRope, r2: CRope): CRope {
+        return XCore::s_createDirect<Rope, CRope>(prepend(r1.value, r2.value));
+    }
+
     function s_crope_empty(cr: CRope): Bool {
         return cr.value?<BBLeaf>;
     }
@@ -413,20 +417,31 @@ namespace CRopeOps {
         
     }
 
-    function concat(l: Rope, r: Rope): Rope {
-        let nn = Rope::createNode(Color#Red, l, r);
-        let tt = balance(nn.c, nn.l, nn.r);
+    function prepend(r1: Rope, r2: Rope): Rope {
+        return concat(r2, r1);
+    }
 
-        if(tt)@<Node> {
-            let nt = if($tt.c === Color#Red) 
-                then Rope::createNode(Color#Black, $tt.l, $tt.r) 
-                else $tt;
-            return nt;
+    recursive function concat_helper(l: Rope, r: Rope, idx: Nat): Rope {
+        let cbuf = get_buffer(r, idx);
+        let nl = append(l, cbuf);
+
+        let maxbufsize = CCharBufferOps::getMaxSize();
+        if(cbuf.size() < maxbufsize) {
+            return nl;
         }
         else {
-            return tt;
+            return concat_helper[recursive](nl, r, idx + maxbufsize);
         }
-    }     
+    }
+
+    %% Append R to L buffer by buffer to ensure buffers are full (if possible) 
+    function concat(l: Rope, r: Rope): Rope {
+        if(r)@<Leaf> {
+            return append(l, $r.buf);
+        }
+
+        return concat_helper(l, r, 0n);
+    }
 
     function equal(r1: Rope, r2: Rope): Bool {
         if(r1?<Leaf> && r2?<Leaf>) {
