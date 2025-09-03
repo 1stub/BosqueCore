@@ -1219,7 +1219,13 @@ entity CPPTransformer {
             }
 
             %% Primitives/Enums don't have saturated fields so return early
-            if(this.bsqasm.isPrimtitiveType(resolvedtkey) || this.bsqasm.enums.has(resolvedtkey)) {
+            %% Collections are represented as typedef of underlying type so no fields
+
+            %%
+            %% Honestly these conditions feel super hacky and fragile, we should think about
+            %% it a bit more
+            %%
+            if(this.bsqasm.isPrimtitiveType(resolvedtkey) || this.bsqasm.enums.has(resolvedtkey) || this.bsqasm.collections.has(resolvedtkey) || this.bsqasm.stringoftypedecls.has(resolvedtkey)) {
                 let ptinfo, ntic = this.generateTypeInfo(resolvedtkey, tic);
                 return FieldInfo{ ptinfo.typesize, ptinfo.slotsize, ptinfo.ptrmask }, ntic;
             }
@@ -1399,6 +1405,16 @@ entity CPPTransformer {
                     return matchedType, nntic.update(cpptkey, matchedType);
                 }
                 elif(this.bsqasm.pconcepts.has(typekey)) {
+
+                    %%
+                    %% Sadly, there are some cases where we do not generate this info correctly.
+                    %% I have specifically noticed it when we have a option<list<...>>
+                    %%
+                    %% This appears to be caused by the case where we are generating some field
+                    %% info for a type with no fields BUT it could alias another type who has
+                    %% fields (like an option<list>!)
+                    %%
+
                     if(ant)@<BSQAssembly::OptionTypeDecl> {
                         let pcinfo, ntic = this.generateTypeInfo[recursive]($ant.someType.tkeystr, tic);
                         let ptrmask = CPPTransformNameManager::repeatCString('0', pcinfo.slotsize, '2');
