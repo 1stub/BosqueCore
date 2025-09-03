@@ -621,8 +621,22 @@ function emitPostfixAccessFromName(op: CPPAssembly::PostfixAccessFromName, ctx: 
 }
 
 %% Probably just struct.field = val
-function emitPostfixAssignFields(op: CPPAssembly::PostfixAssignFields, rootexp: String, ctx: Context): String {
-    return "";
+function emitPostfixAssignFields(op: CPPAssembly::PostfixAssignFields, obj: String, ctx: Context): String {
+    let base = String::concat("𝐮𝐩𝐝𝐚𝐭𝐞𝐅𝐢𝐞𝐥𝐝𝐬(", obj, ", ");
+    let access = generateAccess(op.declOnType.tkeystr, ctx);
+
+    let args = op.updates.map<String>(
+        fn(upd) => {
+            let exp = emitExpression(upd.3, ctx);
+            let fname = emitIdentifier(upd.1);
+            let update = String::concat(obj, access, fname, " = ", exp);
+
+            return update;
+        }
+    );
+
+    let allargs = String::joinAll(", ", args);
+    return String::concat(base, allargs, ")");
 }
 
 %% Assumes access type is elist (I believe this is the only type accessable via postfix index)

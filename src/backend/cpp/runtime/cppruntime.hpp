@@ -10,6 +10,7 @@
 
 #define 𝐚𝐛𝐨𝐫𝐭 (std::longjmp(__CoreCpp::info.error_handler, true))
 #define 𝐚𝐬𝐬𝐞𝐫𝐭(E) if(!(E)) { 𝐚𝐛𝐨𝐫𝐭; }
+#define 𝐮𝐩𝐝𝐚𝐭𝐞𝐅𝐢𝐞𝐥𝐝𝐬(obj, ...) ([&] { (__VA_ARGS__); return (obj); }())
 
 namespace __CoreCpp {
 
