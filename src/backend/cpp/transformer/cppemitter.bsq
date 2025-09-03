@@ -571,17 +571,15 @@ function emitCallTypeFunctionExpression(e: CPPAssembly::CallTypeFunctionExpressi
     return String::concat(name, "(", args, ")");
 }
 
+%%
+%% TODO: Since regex is not supported properly yet we can just emit whatever
+%% expression is present and pass it into the constructor for the type we are creating
+%%
 function emitCallTypeFunctionSpecialExpression(e: CPPAssembly::CallTypeFunctionSpecialExpression, ctx: Context): String {
-%*
-    let typefunc = ctx.asm.typefuncs.get(e.ikey);
-    let name = emitInvokeKey(typefunc.ikey, ctx);
-    let args = emitArguments(e.args, ctx); 
-*%
-    %%
-    %% TODO: name and exp and how to properly emit
-    %%
+    let resolvedDeclType = emitTypeSignature(e.resolvedDeclType, false, ctx);
+    let exp = emitExpression(e.exp, ctx);
 
-    return "";
+    return String::concat(resolvedDeclType, "{ ", exp, " }");
 }
 
 function emitPostfixAccessFromName(op: CPPAssembly::PostfixAccessFromName, ctx: Context): String {
