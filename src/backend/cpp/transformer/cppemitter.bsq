@@ -2339,6 +2339,14 @@ function emitNamespaceDeclTypes(nsdecl: CPPAssembly::NamespaceDecl, ctx: Context
     return String::concat(subns, indent, "}%n;");
 }
 
+%%
+%% There are some issues with the order in which we emit our types that
+%% causes a typedef for CString to fail as it takes place BEFORE 
+%% CString has been defined in core.. This occues with our
+%% stringoftype types... I wonder if we need to backtrack to my original
+%% struct { value } idea?
+%%
+
 function emitAssembly(asm: CPPAssembly::Assembly): String {    
     let ctx: Context = Context{ asm, CPPAssembly::NamespaceKey::from('Tmp'), List<CString>{''} }; %% No known namespace yet
 
