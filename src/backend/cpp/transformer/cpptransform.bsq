@@ -1400,7 +1400,7 @@ entity CPPTransformer {
                 }
                 elif(this.bsqasm.pconcepts.has(typekey)) {
                     if(ant)@<BSQAssembly::OptionTypeDecl> {
-                        let pcinfo, ntic = this.generateFieldInfo(some($ant.oftype), none, false, tic);
+                        let pcinfo, ntic = this.generateTypeInfo[recursive]($ant.someType.tkeystr, tic);
                         let ptrmask = CPPTransformNameManager::repeatCString('0', pcinfo.slotsize, '2');
                         let pctinfo = CPPAssembly::TypeInfo{ ntic.tid, 8n + pcinfo.typesize, 1n + pcinfo.slotsize, ptrmask, cpptkey, CPPAssembly::Tag#Tagged };
 

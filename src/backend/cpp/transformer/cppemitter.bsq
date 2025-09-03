@@ -66,7 +66,11 @@ function emitVarIdentifierValue(vi: CPPAssembly::VarIdentifier): String {
 
 function emitSpecialThis(): String {
     return "𝐭𝐡𝐢𝐬";
-}    
+}
+
+function generateTypeInfoName(basetype: String): String {
+    return String::concat(basetype, "𝐓𝐲𝐩𝐞");
+}
 
 %% Probably should name this better
 function generateAccess(tk: CPPAssembly::TypeKey, ctx: Context): String {
@@ -323,7 +327,8 @@ function emitNamespaceKey(nsk: CPPAssembly::NamespaceKey): String {
 function generateAccessorForSpecialTypeConstructor(constype: CPPAssembly::TypeSignature, ttype: CPPAssembly::TypeSignature, 
     eexp: String, ctx: Context): String {
         let econstype = emitTypeSignature(constype, false, ctx);
-        let ettype = String::concat(removeCppPrefix(emitTypeSignature(ttype, false, ctx)), "Type");
+        let ettype = removeCppPrefix(emitTypeSignature(ttype, false, ctx));
+        let ttypetype = generateTypeInfoName(ettype);
         
         %% Since our collections are just alias for underlying data structure we dont need to emit explicit constructors 
         if(ctx.asm.lookupNominalTypeDeclaration(constype.tkeystr))<CPPAssembly::ListTypeDecl> {
@@ -339,8 +344,8 @@ function generateAccessorForSpecialTypeConstructor(constype: CPPAssembly::TypeSi
             return eexp;
         }
         
-        return if(eexp === "") then String::concat(econstype, "{ &", ettype, " }")
-            else String::concat(econstype, "{ &", ettype, ", ", eexp, " }");
+        return if(eexp === "") then String::concat(econstype, "{ &", ttypetype, " }")
+            else String::concat(econstype, "{ &", ttypetype, ", ", eexp, " }");
         
 }
 
@@ -733,9 +738,11 @@ function emitITestType(it: CPPAssembly::ITestType, baseType: CPPAssembly::TypeSi
         let accessor = String::concat(generateAccess(baseType.tkeystr, ctx), "typeinfo");
         if(ctx.asm.isNominalTypeConcrete(it.ttype.tkeystr)) {
             let ttype = emitTypeSignature(it.ttype, false, ctx);
+            let ettype = generateTypeInfoName(ttype);
+            
             return if(it.isnot) 
-                then String::concat(acc, accessor, " != &", ttype, "Type")
-                else String::concat(acc, accessor, " == &", ttype, "Type");
+                then String::concat(acc, accessor, " != &", ettype)
+                else String::concat(acc, accessor, " == &", ettype);
         }
         else {
             let lhs = ctx.asm.lookupNominalTypeDeclaration(baseType.tkeystr)@<CPPAssembly::AbstractConceptTypeDecl>;
@@ -751,16 +758,20 @@ function emitITestType(it: CPPAssembly::ITestType, baseType: CPPAssembly::TypeSi
 
 function emitITestSome(it: CPPAssembly::ITestSome, baseType: CPPAssembly::TypeSignature, acc: String, ctx: Context): String {
     let accessor = String::concat(generateAccess(baseType.tkeystr, ctx), "typeinfo");
+    let nonetype = generateTypeInfoName("None");
+
     return if(it.isnot) 
-        then String::concat(acc, accessor, " == &NoneType") 
-        else String::concat(acc, accessor, " != &NoneType");
+        then String::concat(acc, accessor, " == &", nonetype) 
+        else String::concat(acc, accessor, " != &", nonetype);
 }
 
 function emitITestNone(it: CPPAssembly::ITestNone, baseType: CPPAssembly::TypeSignature, acc: String, ctx: Context): String {
     let accessor = String::concat(generateAccess(baseType.tkeystr, ctx), "typeinfo");
+    let nonetype = generateTypeInfoName("None");
+
     return if(it.isnot) 
-        then String::concat(acc, accessor, " != &NoneType") 
-        else String::concat(acc, accessor, " == &NoneType");
+        then String::concat(acc, accessor, " != &", nonetype) 
+        else String::concat(acc, accessor, " == &", nonetype);
 }
 
 function emitITestAsTest(it: CPPAssembly::ITest, baseType: CPPAssembly::TypeSignature, acc: String, ctx: Context): String {
@@ -877,7 +888,8 @@ function generateGCAlloc(ti: CPPAssembly::TypeInfo): String {
 
 function callGCAlloc(ti: CPPAssembly::TypeInfo, constype: String, cons: String): String {
     let alloc = generateGCAlloc(ti);
-    let body = String::concat(constype, ", ", alloc, ", &", constype, "Type");
+    let constypetype = generateTypeInfoName(constype);
+    let body = String::concat(constype, ", ", alloc, ", &", constypetype);
     
     return String::concat("𝐀𝐥𝐥𝐨𝐜𝐓𝐲𝐩𝐞( ", body, ", (", cons, ") )");
 }
@@ -921,8 +933,9 @@ function emitConstructorPrimaryListExpression(exp: CPPAssembly::ConstructorPrima
     let args = emitArguments(exp.args, ctx);
     let ns = "Core::ListOps::"; %% So long as lists impl stays in Core::ListOps this will hold 
 
-    let name = emitSpecialTemplate(removeCppPrefix(String::fromCString(exp.elemtype.tkeystr.value)));
-    let ofttype = String::concat("ᐸ", name, "ᐳ");
+    let name = String::fromCString(exp.elemtype.tkeystr.value);
+    let resolvedname = emitSpecialTemplate(removeCppPrefix(name));
+    let ofttype = String::concat("ᐸ", resolvedname, "ᐳ");
     switch(exp.args.size()) {
         0n => { return String::concat(ns, "s_list_create_empty", ofttype, "()"); }
         | 1n => { return String::concat(ns, "s_list_create_1", ofttype, "(", args, ")"); }
@@ -942,8 +955,8 @@ function emitConstructorPrimaryMapExpression(exp: CPPAssembly::ConstructorPrimar
     let ktype = String::fromCString(exp.keytype.tkeystr.value);
     let vtype = String::fromCString(exp.valuetype.tkeystr.value);
     
-    let resolvedktype = removeCppPrefix(ktype);
-    let resolvedvtype = removeCppPrefix(vtype);
+    let resolvedktype = emitSpecialTemplate(removeCppPrefix(ktype));
+    let resolvedvtype = emitSpecialTemplate(removeCppPrefix(vtype));
     
     let template = String::concat("ᐸ", resolvedktype, "ᐧ", resolvedvtype, "ᐳ");
 
@@ -978,7 +991,7 @@ function emitConstructorExpression(exp: CPPAssembly::ConstructorExpression, ctx:
 }
 
 function emitIfTestExpression(exp: CPPAssembly::IfTestExpression, i: String, t: String, e: String, ctx: Context): String {
-    let itest = String::concat(i, emitITestAsTest(exp.itest, exp.texp.etype, "", ctx)); %% Likely doesnt work if the itest is just bool
+    let itest = emitITestAsTest(exp.itest, exp.texp.etype, i, ctx); %% Likely doesnt work if the itest is just bool
 
     let ite = String::concat(itest, " ? (", t, ") : (", e, ")");
     return String::concat("( ", ite, " )");
@@ -1018,7 +1031,7 @@ function emitIfBinderExpression(exp: CPPAssembly::IfBinderExpression, i: String,
     let capture = String::concat("[&]() -> ", emitTypeKey(exp.etype.tkeystr, false, ctx), " { ");
     let etype = exp.texp.etype; 
 
-    let itest = String::concat(i, emitITestAsTest(exp.itest, exp.texp.etype, "", ctx));
+    let itest = emitITestAsTest(exp.itest, exp.texp.etype, i, ctx);
 
     let tconvert = doConvertMaybeSpecialCase(exp.itest.isnot, exp.itest, etype.tkeystr, none, ctx);
     let treassign = emitBindVar(exp.binder.srcname, tconvert.0, tconvert.1, i);
@@ -1171,12 +1184,13 @@ function emitLiteralUnicodeCharExpression(exp: CPPAssembly::LiteralUnicodeCharEx
     return String::concat("U'", String::fromUnicodeChar(exp.value), "'");
 }
 
+%% Representation as intptr max is temporary
 function emitLiteralCRegexExpression(exp: CPPAssembly::LiteralCRegexExpression): String {
-    return "";
+    return "INTPTR_MAX";
 }
 
 function emitLiteralRegexExpression(exp: CPPAssembly::LiteralRegexExpression): String {
-    return "";
+    return "INTPTR_MAX";
 }
 
 %% Just a typedef for the expression stored!
@@ -1492,9 +1506,10 @@ function emitMatchStatement(stmt: CPPAssembly::MatchStatement, ctx: Context, ind
         let bind = tryGenerateBindType(stmt.bindInfo, expr, stmt.sval.etype.tkeystr, mf.0.tkeystr, ctx, full_indent);
         let block = String::concat(bind, emitBlockStatement(mf.1, ctx, full_indent), full_indent, "}%n;");
         let ts = removeCppPrefix(emitTypeSignature(mf.0, false, ctx));
+        let tstype = generateTypeInfoName(ts);
 
         if(ii == 0n) {
-            return String::concat(full_indent, "if(", sval, ts, "Type) {%n;", block);
+            return String::concat(full_indent, "if(", sval, tstype, ") {%n;", block);
         }
         else {
             %% Match everything case
@@ -1502,7 +1517,7 @@ function emitMatchStatement(stmt: CPPAssembly::MatchStatement, ctx: Context, ind
                 return String::concat(full_indent, "else if(true) {%n;", block);               
             }
             else {
-                return String::concat(full_indent, "else if(", sval, ts, "Type) {%n;", block);
+                return String::concat(full_indent, "else if(", sval, tstype, ") {%n;", block);
             }
         }
     });
@@ -1972,7 +1987,7 @@ function emitTypeInfo(info: CPPAssembly::TypeInfo, ant: Option<CPPAssembly::Abst
         }
     }
 
-    let tinfo_name = String::concat(name, "Type");
+    let tinfo_name = generateTypeInfoName(name);
 
     let base = String::concat(indent, "__CoreGC::TypeInfoBase ", tinfo_name, " = {%n;");
     let id = String::concat(base, full_indent, ".type_id = ", String::fromCString(info.id.toCString()), ",%n;");
@@ -2085,15 +2100,14 @@ function emitCollectionTypeDecl(ctd: CPPAssembly::CollectionTypeDecl, ctx: Conte
 function emitPrimitiveEntityTypeDecl(petd: CPPAssembly::PrimitiveEntityTypeDecl, ctx: Context, indent: String): String {
     %%
     %% Currently the cpp emitter has no proper support for regex 
-    %% so we will emit as void
+    %% so we will emit as __CoreCpp::None
     %%
 
-    %% This doesnt work because in some cases we store a regex as a field even though it does nothing
     if(petd.tkey.value === 'CRegex') {
-        return String::concat(indent, "typedef void CRegex;%n;");
+        return String::concat(indent, "typedef __CoreCpp::None CRegex;%n;");
     }
     elif(petd.tkey.value === 'Regex') {
-        return String::concat(indent, "typedef void Regex;%n;");
+        return String::concat(indent, "typedef __CoreCpp::None Regex;%n;");
     }
     else {
         %% Only Regex needs explicit representation right now, others exist in runtime files
@@ -2386,16 +2400,16 @@ function emitAssembly(asm: CPPAssembly::Assembly): String {
     %% Checking for equality on our ropes needs to be overloaded in global namespace
     var overloads: String = "";
     if(ctx.asm.nsfuncs.has(CPPAssembly::InvokeKey::from('Core::CRopeOps::s_crope_equal'))) {
-        overloads = String::concat(overloads, "__CoreCpp::Bool operator==(const Core::CString& lhs, const Core::CString& rhs) { return Core::CRopeOps::s_crope_equal(lhs, rhs); }");
+        overloads = String::concat(overloads, "__CoreCpp::Bool operator==(const Core::CString& lhs, const Core::CString& rhs) { return Core::CRopeOps::s_crope_equal(lhs, rhs); }%n;");
     }
     if(ctx.asm.nsfuncs.has(CPPAssembly::InvokeKey::from('Core::CRopeOps::s_crope_less'))) {
-        overloads = String::concat(overloads, "__CoreCpp::Bool operator<(const Core::CString& lhs, const Core::CString& rhs) { return Core::CRopeOps::s_crope_less(lhs, rhs); }");
+        overloads = String::concat(overloads, "__CoreCpp::Bool operator<(const Core::CString& lhs, const Core::CString& rhs) { return Core::CRopeOps::s_crope_less(lhs, rhs); }%n;");
     }
     if(ctx.asm.nsfuncs.has(CPPAssembly::InvokeKey::from('Core::UnicodeRopeOps::s_unicoderope_equal'))) {
-        overloads = String::concat(overloads, "__CoreCpp::Bool operator==(const Core::String& lhs, const Core::String& rhs) { return Core::UnicodeRopeOps::s_unicoderope_equal(lhs, rhs); }");
+        overloads = String::concat(overloads, "__CoreCpp::Bool operator==(const Core::String& lhs, const Core::String& rhs) { return Core::UnicodeRopeOps::s_unicoderope_equal(lhs, rhs); }%n;");
     }
     if(ctx.asm.nsfuncs.has(CPPAssembly::InvokeKey::from('Core::UnicodeRopeOps::s_unicoderope_less'))) {
-        overloads = String::concat(overloads, "__CoreCpp::Bool operator<(const Core::String& lhs, const Core::String& rhs) { return Core::UnicodeRopeOps::s_unicoderope_less(lhs, rhs); }");   
+        overloads = String::concat(overloads, "__CoreCpp::Bool operator<(const Core::String& lhs, const Core::String& rhs) { return Core::UnicodeRopeOps::s_unicoderope_less(lhs, rhs); }%n;");   
     }
 
     %% We use this bold src so we can split our header and src files into two strings in analyzecpp
