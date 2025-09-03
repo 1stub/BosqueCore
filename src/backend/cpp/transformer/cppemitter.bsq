@@ -79,8 +79,10 @@ function generateAccess(tk: CPPAssembly::TypeKey, ctx: Context): String {
 }
 
 %%
-%% TODO: We should rework these to where you never call generateAccess
-%% directly but rather always through getAccessor
+%% I think what we should do is modify our access pattern to where we can always
+%% do access through getAccessor BUT if we need to access typeinfo we 
+%% should not need to do any access call? I think that would be much cleaner
+%% and should squeeze out some bugs...?
 %%
 
 %% Might want to get this running without the need for explicit access_ref
