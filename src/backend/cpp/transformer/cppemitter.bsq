@@ -78,6 +78,11 @@ function generateAccess(tk: CPPAssembly::TypeKey, ctx: Context): String {
     }
 }
 
+%%
+%% TODO: We should rework these to where you never call generateAccess
+%% directly but rather always through getAccessor
+%%
+
 %% Might want to get this running without the need for explicit access_ref
 function getAccessor(basetk: CPPAssembly::TypeKey, accessingtk: CPPAssembly::TypeKey, ctx: Context): String {
     let accessor = generateAccess(basetk, ctx);
@@ -571,15 +576,9 @@ function emitCallTypeFunctionExpression(e: CPPAssembly::CallTypeFunctionExpressi
     return String::concat(name, "(", args, ")");
 }
 
-%%
-%% TODO: Since regex is not supported properly yet we can just emit whatever
-%% expression is present and pass it into the constructor for the type we are creating
-%%
+%% resolvedDeclType is just a typedef of the value! 
 function emitCallTypeFunctionSpecialExpression(e: CPPAssembly::CallTypeFunctionSpecialExpression, ctx: Context): String {
-    let resolvedDeclType = emitTypeSignature(e.resolvedDeclType, false, ctx);
-    let exp = emitExpression(e.exp, ctx);
-
-    return String::concat(resolvedDeclType, "{ ", exp, " }");
+    return emitExpression(e.exp, ctx);
 }
 
 function emitPostfixAccessFromName(op: CPPAssembly::PostfixAccessFromName, ctx: Context): String {
@@ -587,15 +586,19 @@ function emitPostfixAccessFromName(op: CPPAssembly::PostfixAccessFromName, ctx: 
     let base_tinfo = ctx.asm.typeinfos.get(op.baseType.tkeystr);
     let ident = emitIdentifier(op.name);
 
-    %% We dont want to try to access value on a collection (they just emit as the underlying datastructure)
+    %% We dont want to try to access value on a collection or stringof (they just emit as the underlying type)
     if(ctx.asm.collections.has(op.baseType.tkeystr)) {
         return "";
     }
+    if(ctx.asm.stringoftypedecls.has(op.baseType.tkeystr)) {
+        return "";
+    }
+    %% Maybe normal typedecls here too?
 
     if(ctx.asm.isNominalTypeConcept(op.baseType.tkeystr)) {
         let e = ctx.asm.lookupNominalTypeDeclaration(op.baseType.tkeystr)@<CPPAssembly::AbstractConceptTypeDecl>;
         let canresolve, offset = canUseDirectFieldAccess(e, op.name, ctx);
-        let fieldaccessor = generateAccess(op.ftype.tkeystr, ctx);
+        let fieldaccessor = generateAccess(op.baseType.tkeystr, ctx);
         let fieldaccess = String::concat(fieldaccessor, ident);
         let accessType = getAccessor(op.baseType.tkeystr, op.ftype.tkeystr, ctx);
         
@@ -613,12 +616,11 @@ function emitPostfixAccessFromName(op: CPPAssembly::PostfixAccessFromName, ctx: 
         }
     }
     else {
-        let accessor = generateAccess(op.declaredInType.tkeystr, ctx);
+        let accessor = generateAccess(op.baseType.tkeystr, ctx);
         return String::concat(accessor, ident);
     }
 }
 
-%% Probably just struct.field = val
 function emitPostfixAssignFields(op: CPPAssembly::PostfixAssignFields, obj: String, ctx: Context): String {
     let base = String::concat("𝐮𝐩𝐝𝐚𝐭𝐞𝐅𝐢𝐞𝐥𝐝𝐬(", obj, ", ");
     let access = generateAccess(op.declOnType.tkeystr, ctx);
@@ -627,7 +629,13 @@ function emitPostfixAssignFields(op: CPPAssembly::PostfixAssignFields, obj: Stri
         fn(upd) => {
             let exp = emitExpression(upd.3, ctx);
             let fname = emitIdentifier(upd.1);
-            let update = String::concat(obj, access, fname, " = ", exp);
+
+            var accessing = access;
+            if(ctx.asm.isNominalTypeConcept(op.declOnType.tkeystr)) {
+                accessing = getAccessor(op.declOnType.tkeystr, upd.2.tkeystr, ctx);
+            }
+
+            let update = String::concat(obj, accessing, fname, " = ", exp);
 
             return update;
         }
@@ -1169,12 +1177,9 @@ function emitLiteralRegexExpression(exp: CPPAssembly::LiteralRegexExpression): S
     return "";
 }
 
-%% Extracting values from a typedecl requires literal '.value' access 
-%% so for now we construct the type to make value access easier
+%% Just a typedef for the expression stored!
 function emitLiteralTypeDeclValueExpression(exp: CPPAssembly::LiteralTypeDeclValueExpression, ctx: Context): String {
-    let constype = emitTypeSignature(exp.constype, false, ctx);
-
-    return String::concat(constype, "{ ", emitExpression(exp.value, ctx), " }");
+    return emitExpression(exp.value, ctx);
 }
 
 function emitCStringAsLiteral(s: CString): String {
@@ -2022,7 +2027,6 @@ function emitConstructableTypeDecl(ctd: CPPAssembly::ConstructableTypeDecl, ctx:
 
 function emitTypedeclStringOfTypeDecl(tdstd: CPPAssembly::TypedeclStringOfTypeDecl, ctx: Context, indent: String): String {
     let nctx = ctx.updateCurrentNamespace(tdstd.declaredInNS, tdstd.fullns);
-    let full_indent = String::concat("    ", indent);
 
     let tdstdtype = emitTypeKey(tdstd.tkey, false, nctx);
     let valuetype = emitTypeSignature(tdstd.valuetype, true, nctx);
@@ -2035,9 +2039,8 @@ function emitTypedeclStringOfTypeDecl(tdstd: CPPAssembly::TypedeclStringOfTypeDe
     let tdstd_tinfo = nctx.asm.typeinfos.get(tdstd.tkey);
     let e_tdstd_tinfo = emitTypeInfo(tdstd_tinfo, some(tdstd), nctx, indent);
 
-    let base = String::concat(indent, "struct ", tdstdtype, " {%n;");
-    let value = String::concat(full_indent, valuetype, " value;%n;");
-    let def = String::concat(base, value, indent, "};%n;");
+    %% Emit as typedef of value type
+    let def = String::concat(indent, "typedef ", valuetype, " ", tdstdtype, ";%n;");
 
     return String::concat(e_tdstd_tinfo, def);
 }
@@ -2082,6 +2085,8 @@ function emitPrimitiveEntityTypeDecl(petd: CPPAssembly::PrimitiveEntityTypeDecl,
     %% Currently the cpp emitter has no proper support for regex 
     %% so we will emit as void
     %%
+
+    %% This doesnt work because in some cases we store a regex as a field even though it does nothing
     if(petd.tkey.value === 'CRegex') {
         return String::concat(indent, "typedef void CRegex;%n;");
     }
@@ -2212,7 +2217,6 @@ recursive function emitNamespaceDecl(nsdecl: CPPAssembly::NamespaceDecl, ctx: Co
         }
     );
 
-    %% Will need nsdecl consts too, this is just ConstMemberDecls 
     let typeconsts = nsdecl.typeconsts
         .reduce<String>(nsconsts, fn(acc, s) => {
             let tc = ctx.asm.typeconsts.get(s);
@@ -2253,7 +2257,7 @@ function emitNamespaceDeclFwdDecls(nsdecl: CPPAssembly::NamespaceDecl, ctx: Cont
     });
 
     let ant_fwddecls = nsdecl.alltypes
-        .filter(pred(tk) => !ctx.asm.collections.has(tk) && !ctx.asm.enums.has(tk) && !ctx.asm.primitives.has(tk))
+        .filter(pred(tk) => !ctx.asm.collections.has(tk) && !ctx.asm.enums.has(tk) && !ctx.asm.primitives.has(tk) && !ctx.asm.stringoftypedecls.has(tk))
         .reduce<String>("", fn(acc, tk) => {
             let ant = ctx.asm.lookupNominalTypeDeclaration(tk);
             let fwddecl = emitAbstractNominalForwardDeclaration(ant, ctx, full_indent); 
