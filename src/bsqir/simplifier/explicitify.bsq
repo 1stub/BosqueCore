@@ -46,6 +46,10 @@ entity ExplicitifyTransform {
     field assembly: Assembly;
 
     method processCoerceTypeAsNeeded(e: Expression, into: TypeSignature): Expression {
+        if(e.etype?<BSQAssembly::LambdaTypeSignature> || into?<BSQAssembly::LambdaTypeSignature>) {
+            return e;
+        }
+
         if(this.assembly.areTypesSame(e.etype, into)) {
             return e;
         }
@@ -708,7 +712,7 @@ entity ExplicitifyTransform {
         let nname = vmap.resolveVariableAsNeeded(s.binder.srcname);
         let nbinder = BinderInfo{nname, s.binder.refineonfollow};
 
-        let ntb = this.processBlockStatement[recursive](s.trueBlock, vmap);
+        let ntb = this.processBlockStatement[recursive](s.trueBlock, nvmap);
 
         return s[binder=nbinder, texp=ntexp, trueBlock=ntb];
     }
@@ -746,8 +750,8 @@ entity ExplicitifyTransform {
         let nname = vmap.resolveVariableAsNeeded(s.binder.srcname);
         let nbinder = BinderInfo{nname, s.binder.refineonfollow};
 
-        let ntb = this.processBlockStatement[recursive](s.trueBlock, vmap);
-        let nfb = this.processBlockStatement[recursive](s.falseBlock, vmap);
+        let ntb = this.processBlockStatement[recursive](s.trueBlock, nvmap);
+        let nfb = this.processBlockStatement[recursive](s.falseBlock, nvmap);
 
         return s[binder=nbinder, texp=ntexp, trueBlock=ntb, falseBlock=nfb];
     }

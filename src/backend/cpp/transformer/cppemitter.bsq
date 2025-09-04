@@ -2337,7 +2337,8 @@ function emitNamespaceDeclTypes(nsdecl: CPPAssembly::NamespaceDecl, ctx: Context
 
     %% Ref and Tagged types
     let other = nsdecl.alltypes
-        .filter(pred(tk) => ctx.asm.typeinfos.get(tk).tag !== CPPAssembly::Tag#Value)
+        .filter(pred(tk) => ctx.asm.typeinfos.get(tk).tag !== CPPAssembly::Tag#Value
+            && !ctx.asm.stringoftypedecls.has(tk) && !ctx.asm.typedecls.has(tk))
         .reduce<String>(String::concat(values, "//%n;// Ref and Tagged Type Definitions%n;//%n;"), fn(acc, tk) => {
             let ant = ctx.asm.lookupNominalTypeDeclaration(tk);
             let def = emitAbstractNominalTypeDecl(ant, tk, ctx, full_indent);
