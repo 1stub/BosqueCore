@@ -83,10 +83,10 @@ function generateAccess(tk: CPPAssembly::TypeKey, ctx: Context): String {
 }
 
 %%
-%% I think what we should do is modify our access pattern to where we can always
-%% do access through getAccessor BUT if we need to access typeinfo we 
-%% should not need to do any access call? I think that would be much cleaner
-%% and should squeeze out some bugs...?
+%% We really should change how we treat these accessors.
+%% Having to manually generate the template at every point is not awesome,
+%% it would be much better to generate all templates too here and figure out
+%% how I can work this to never need generateAccess call outside of getAccessor
 %%
 
 %% Might want to get this running without the need for explicit access_ref
@@ -630,6 +630,7 @@ function emitPostfixAccessFromName(op: CPPAssembly::PostfixAccessFromName, ctx: 
 
 function emitPostfixAssignFields(op: CPPAssembly::PostfixAssignFields, obj: String, ctx: Context): String {
     let base = String::concat("𝐮𝐩𝐝𝐚𝐭𝐞𝐅𝐢𝐞𝐥𝐝𝐬(", obj, ", ");
+    let baseant = ctx.asm.lookupNominalTypeDeclaration(op.declOnType.tkeystr);
     let access = generateAccess(op.declOnType.tkeystr, ctx);
 
     let args = op.updates.map<String>(
@@ -637,9 +638,14 @@ function emitPostfixAssignFields(op: CPPAssembly::PostfixAssignFields, obj: Stri
             let exp = emitExpression(upd.3, ctx);
             let fname = emitIdentifier(upd.1);
 
+            %% If we are trying to set fields on a concept, lets pick any subtype
+            %% for access since all share these fields
             var accessing = access;
             if(ctx.asm.isNominalTypeConcept(op.declOnType.tkeystr)) {
-                accessing = getAccessor(op.declOnType.tkeystr, upd.2.tkeystr, ctx);
+                let anysubtypekey = baseant@<CPPAssembly::AbstractConceptTypeDecl>.subtypes.front();
+                let anysubtypetype = emitTypeKey(anysubtypekey, false, ctx);
+                accessing = String::concat(getAccessor(op.declOnType.tkeystr, upd.2.tkeystr, ctx), 
+                    "<", anysubtypetype, ">()", access);
             }
 
             let update = String::concat(obj, accessing, fname, " = ", exp);
@@ -2307,10 +2313,23 @@ function emitNamespaceDeclTypes(nsdecl: CPPAssembly::NamespaceDecl, ctx: Context
             return String::concat(acc, def);
     });
 
+    let typedecls = nsdecl.alltypes
+        .filter(pred(tk) => ctx.asm.stringoftypedecls.has(tk) || ctx.asm.typedecls.has(tk))
+        .reduce<String>(enums, fn(acc, tk) => {
+            let ant = ctx.asm.lookupNominalTypeDeclaration(tk);
+            let def = emitAbstractNominalTypeDecl(ant, tk, ctx, full_indent);
+            return String::concat(acc, def); 
+        }
+    );
+
     %% Value type, ")"s
     let values = nsdecl.alltypes
-        .filter(pred(tk) => ctx.asm.typeinfos.get(tk).tag === CPPAssembly::Tag#Value && !ctx.asm.enums.has(tk) && !ctx.asm.collections.has(tk) && !ctx.asm.primitives.has(tk))
-        .reduce<String>(enums, fn(acc, tk) => {
+        .filter(pred(tk) => ctx.asm.typeinfos.get(tk).tag === CPPAssembly::Tag#Value 
+            && !ctx.asm.enums.has(tk) && !ctx.asm.collections.has(tk) 
+            && !ctx.asm.primitives.has(tk) && !ctx.asm.stringoftypedecls.has(tk)
+            && !ctx.asm.typedecls.has(tk)
+        )
+        .reduce<String>(typedecls, fn(acc, tk) => {
             let ant = ctx.asm.lookupNominalTypeDeclaration(tk);
             let def = emitAbstractNominalTypeDecl(ant, tk, ctx, full_indent);
             return String::concat(acc, def);
