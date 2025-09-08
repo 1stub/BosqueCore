@@ -52,6 +52,7 @@ struct MemStats {
     size_t total_alloc_memory = 0;
     size_t total_live_bytes   = 0;
     size_t total_collections  = 0;
+    size_t total_promotions   = 0;
 
     CollectionStats stats { 0 };
 
@@ -218,6 +219,9 @@ inline void update_stats(MemStats& ms, double time) noexcept
         std::cout << "Total Allocated Memory: " << (E).mstats.total_alloc_memory << " bytes\n"; \
     } while(0)
 
+#define PRINT_TOTAL_PROMOTIONS(E) \
+    (std::cout << "Total Promotions: " << (E).mstats.total_promotions << "\n")
+
 #define PRINT_MAX_HEAP(E) \
     (std::cout << "Max Live Heap Size: " << (E).mstats.max_live_heap << " bytes\n")
 
@@ -228,6 +232,7 @@ inline void update_stats(MemStats& ms, double time) noexcept
         PRINT_EVACUATION_TIME(E);   \
         PRINT_DECREMENT_TIME(E);    \
         PRINT_TOTAL_COLLECTIONS(E); \
+        PRINT_TOTAL_PROMOTIONS(E);  \
         PRINT_ALLOC_INFO(E);        \
         PRINT_MAX_HEAP(E);          \
     } while(0)
