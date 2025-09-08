@@ -43,11 +43,17 @@ struct RegisterContents
 
 // Buckets store BUCKET_VARIANCE ms variance, final entry is for outliers (hopefully never any values present there)
 #define MAX_MEMSTATS_BUCKETS 100 + 1
+struct CollectionStats {
+    double mean = 0.0;
+    double M2   = 0.0;
+};
 struct MemStats {
     size_t total_alloc_count  = 0;
     size_t total_alloc_memory = 0;
     size_t total_live_bytes   = 0;
     size_t total_collections  = 0;
+
+    CollectionStats stats { 0 };
 
     double min_collection_time = 0;
     double max_collection_time = 0;    
@@ -165,6 +171,11 @@ inline void update_bucket(size_t* bucket, double time) noexcept
     }
 }
 
+double get_mean_pause(MemStats& ms) noexcept;
+double get_stddev(const MemStats& ms) noexcept;
+std::string generate_formatted_memstats(MemStats& ms) noexcept;
+void update_collection(MemStats& ms, double time) noexcept;
+
 inline void update_collection_extrema(MemStats& ms, double time) noexcept 
 {
     if(time > ms.max_collection_time) { 
@@ -173,16 +184,20 @@ inline void update_collection_extrema(MemStats& ms, double time) noexcept
     if(time < ms.min_collection_time || ms.min_collection_time < 1e-10) { 
         ms.min_collection_time = time;
     }
-} 
+}
 
-double compute_average_time(size_t buckets[MAX_MEMSTATS_BUCKETS]) noexcept;
-std::string generate_formatted_memstats(MemStats& ms) noexcept;
+inline void update_stats(MemStats& ms, double time) noexcept 
+{
+    update_collection_extrema(ms, time);
+    update_collection(ms, time);
+}
 
-#define PRINT_COLLECTION_TIME(E)                                                                                 \
-    do{                                                                                                          \
-        std::cout << "Average Collection Time: " << compute_average_time((E).mstats.collection_times) << "ms\n"; \
-        std::cout << "Min Collection Time: " << (E).mstats.min_collection_time << "ms\n";                        \
-        std::cout << "Max Collection Time: " << (E).mstats.max_collection_time << "ms\n";                        \
+#define PRINT_COLLECTION_TIME(E) \
+    do{ \
+        std::cout << "Average Collection Time: " << get_mean_pause((E).mstats) << "ms\n"; \
+        std::cout << "Collection Time Standard Deviation: " << get_stddev((E).mstats) << "ms\n"; \
+        std::cout << "Min Collection Time: " << (E).mstats.min_collection_time << "ms\n"; \
+        std::cout << "Max Collection Time: " << (E).mstats.max_collection_time << "ms\n"; \
     } while(0)
 
 #define PRINT_MARKING_TIME(E) \

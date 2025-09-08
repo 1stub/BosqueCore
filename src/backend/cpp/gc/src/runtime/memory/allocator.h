@@ -25,7 +25,7 @@
         auto end = std::chrono::high_resolution_clock::now();                              \
         double duration_ms = std::chrono::                                                 \
             duration_cast<std::chrono::duration<double, std::milli>>(end - start).count(); \
-        update_collection_extrema(gtl_info.mstats, duration_ms);                           \
+        update_stats(gtl_info.mstats, duration_ms);                           \
         update_bucket(gtl_info.mstats. BUCKETS, duration_ms);                              \
     }while(0)
 #define UPDATE_MEMSTATS()                                 \
