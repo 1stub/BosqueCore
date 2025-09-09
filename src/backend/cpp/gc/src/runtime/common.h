@@ -258,10 +258,13 @@ static_assert(sizeof(MetaData) == 8, "MetaData size is not 8 bytes");
 #endif
 
 #ifdef MEM_STATS
+
+#define COLLECTION_STATS_MODE
+#define NURSERY_RC_STATS_MODE
+
 #define TOTAL_ALLOC_COUNT(E)      (E).mstats.total_alloc_count
 #define TOTAL_ALLOC_MEMORY(E)     (E).mstats.total_alloc_memory
 #define TOTAL_LIVE_BYTES(E)       (E).mstats.total_live_bytes
-#define TOTAL_COLLECTIONS(E)      (E).mstats.total_collections
 #define TOTAL_PROMOTIONS(E)       (E).mstats.total_promotions
 #define MIN_COLLECTION_TIME(E)    (E).mstats.min_collection_time
 #define MAX_COLLECTION_TIME(E)    (E).mstats.max_collection_time
@@ -270,7 +273,6 @@ static_assert(sizeof(MetaData) == 8, "MetaData size is not 8 bytes");
 #define UPDATE_TOTAL_ALLOC_COUNT(E, OP, ...)      TOTAL_ALLOC_COUNT((E)) OP __VA_ARGS__
 #define UPDATE_TOTAL_ALLOC_MEMORY(E, OP, ...)     TOTAL_ALLOC_MEMORY((E)) OP __VA_ARGS__
 #define UPDATE_TOTAL_LIVE_BYTES(E, OP, ...)       TOTAL_LIVE_BYTES((E)) OP __VA_ARGS__
-#define UPDATE_TOTAL_COLLECTIONS(E, OP, ...)      TOTAL_COLLECTIONS((E)) OP __VA_ARGS__
 #define UPDATE_TOTAL_PROMOTIONS(E, OP, ...)      TOTAL_PROMOTIONS((E)) OP __VA_ARGS__
 #define UPDATE_MIN_COLLECTION_TIME(E, OP, ...)    MIN_COLLECTION_TIME((E)) OP __VA_ARGS__
 #define UPDATE_MAX_COLLECTION_TIME(E, OP, ...)    MAX_COLLECTION_TIME((E)) OP __VA_ARGS__
@@ -279,7 +281,6 @@ static_assert(sizeof(MetaData) == 8, "MetaData size is not 8 bytes");
 #define TOTAL_ALLOC_COUNT(E)                      (0)
 #define TOTAL_ALLOC_MEMORY(E)                     (0)
 #define TOTAL_LIVE_BYTES(E)                       (0)
-#define TOTAL_COLLECTIONS(E)                      (0)
 #define MIN_COLLECTION_TIME(E)                    (0)
 #define MAX_COLLECTION_TIME(E)                    (0)
 #define MAX_LIVE_HEAP(E)                          (0)
@@ -287,7 +288,6 @@ static_assert(sizeof(MetaData) == 8, "MetaData size is not 8 bytes");
 #define UPDATE_TOTAL_ALLOC_COUNT(E, OP, ...)
 #define UPDATE_TOTAL_ALLOC_MEMORY(E, OP, ...)
 #define UPDATE_TOTAL_LIVE_BYTES(E, OP, ...)
-#define UPDATE_TOTAL_COLLECTIONS(E, OP, ...)
 #define UPDATE_TOTAL_PROMOTIONS(E, OP, ...)
 #define UPDATE_MIN_COLLECTION_TIME(E, OP, ...)
 #define UPDATE_MAX_COLLECTION_TIME(E, OP, ...)

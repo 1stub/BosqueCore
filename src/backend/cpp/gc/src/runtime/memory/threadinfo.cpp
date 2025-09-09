@@ -94,27 +94,28 @@ void BSQMemoryTheadLocalInfo::unloadNativeRootSet() noexcept
 
 #include <cmath>
 
-void update_collection(MemStats& ms, double time) noexcept
+void update_stats(Stats& stats, double time) noexcept
 {
     // Welford's algorithm
-    double delta = time - ms.stats.mean;
-    ms.stats.mean += delta / ms.total_collections;
-    double delta2 = time - ms.stats.mean;
-    ms.stats.M2 += delta * delta2;
+    stats.count++;
+    double delta = time - stats.mean;
+    stats.mean += delta / stats.count;
+    double delta2 = time - stats.mean;
+    stats.M2 += delta * delta2;
 }
 
-double get_mean_pause(MemStats& ms) noexcept
+double get_mean_pause(Stats& stats) noexcept
 {
-    return ms.stats.mean;
+    return stats.mean;
 }
 
-double get_stddev(const MemStats& ms) noexcept 
+double get_stddev(const Stats& stats) noexcept 
 {
-    if(ms.total_collections < 2) {
+    if(stats.count < 2) {
         return 0.0;
     }
 
-    return std::sqrt(ms.stats.M2 / ms.total_collections);
+    return std::sqrt(stats.M2 / stats.count);
 }
 
 std::string generate_bucket_data(size_t buckets[MAX_MEMSTATS_BUCKETS]) noexcept 
@@ -145,17 +146,13 @@ std::string generate_formatted_memstats(MemStats& ms) noexcept
     std::string collection_data = generate_bucket_data(ms.collection_times);
     std::string collection_times = "<Collection Times>" + collection_data;
 
-    std::string marking_data = generate_bucket_data(ms.marking_times);
-    std::string marking_times = "<Marking Times>" + marking_data;
+    std::string nursery_data = generate_bucket_data(ms.nursery_times);
+    std::string nursery_times = "<Nursery Times>" + nursery_data;
 
-    std::string evacuation_data = generate_bucket_data(ms.evacuation_times);
-    std::string evacuation_times = "<Evacuation Times>" + evacuation_data;
+    std::string rc_data = generate_bucket_data(ms.rc_times);
+    std::string rc_times = "<RC Times>" + rc_data;
 
-    std::string decrement_data = generate_bucket_data(ms.decrement_times);
-    std::string decrement_times = "<Decrement Times>" + decrement_data;
-
-    return header + collection_times + marking_times
-        + evacuation_times + decrement_times;
+    return header + collection_times + nursery_times + rc_times;
 }
 
 #endif //MEM_STATS
