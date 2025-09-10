@@ -53,6 +53,7 @@ struct MemStats {
     size_t total_alloc_memory = 0;
     size_t total_live_bytes   = 0;
     size_t total_promotions   = 0;
+    size_t total_pages        = 0;
 
     Stats collection_stats { 0 };
     Stats nursery_stats    { 0 };
@@ -253,6 +254,15 @@ inline void update_rc_stats(MemStats& ms, double time) noexcept
 #define PRINT_TOTAL_COLLECTIONS(E) \
     (std::cout << "Total Collections: " << (E).mstats.collection_stats.count << "\n")
 
+#define PRINT_TOTAL_PAGES(E) \
+    (std::cout << "Total Pages: " << (E).mstats.total_pages << "\n")
+
+//
+// We are updating total pages wrong!
+//
+#define PRINT_HEAP_SIZE(E) \
+    (std::cout << "Heap Size: " << (E).mstats.total_pages * BSQ_BLOCK_ALLOCATION_SIZE << " bytes\n")
+
 #define PRINT_ALLOC_INFO(E)                                                                     \
     do {                                                                                        \
         std::cout << "Total Alloc Count: " << (E).mstats.total_alloc_count << "\n";             \
@@ -273,7 +283,9 @@ inline void update_rc_stats(MemStats& ms, double time) noexcept
         PRINT_TOTAL_COLLECTIONS(E); \
         PRINT_TOTAL_PROMOTIONS(E); \
         PRINT_ALLOC_INFO(E); \
+        PRINT_TOTAL_PAGES(E); \
         PRINT_MAX_HEAP(E); \
+        PRINT_HEAP_SIZE(E); \
     } while(0)
 
 #else

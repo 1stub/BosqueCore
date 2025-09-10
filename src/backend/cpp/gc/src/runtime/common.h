@@ -50,7 +50,7 @@
 #define BSQ_MAX_ALLOC_SLOTS 64ul
 
 //Number of allocation pages we fill up before we start collecting
-#define BSQ_COLLECTION_THRESHOLD 1024
+#define BSQ_COLLECTION_THRESHOLD 512 
 
 //Max number of decrement ops we do per collection -- 
 //    TODO:we may need to make this a bit dynamic 
@@ -266,6 +266,7 @@ static_assert(sizeof(MetaData) == 8, "MetaData size is not 8 bytes");
 #define TOTAL_ALLOC_MEMORY(E)     (E).mstats.total_alloc_memory
 #define TOTAL_LIVE_BYTES(E)       (E).mstats.total_live_bytes
 #define TOTAL_PROMOTIONS(E)       (E).mstats.total_promotions
+#define TOTAL_PAGES(E)            (E).mstats.total_pages
 #define MIN_COLLECTION_TIME(E)    (E).mstats.min_collection_time
 #define MAX_COLLECTION_TIME(E)    (E).mstats.max_collection_time
 #define MAX_LIVE_HEAP(E)          (E).mstats.max_live_heap
@@ -273,7 +274,8 @@ static_assert(sizeof(MetaData) == 8, "MetaData size is not 8 bytes");
 #define UPDATE_TOTAL_ALLOC_COUNT(E, OP, ...)      TOTAL_ALLOC_COUNT((E)) OP __VA_ARGS__
 #define UPDATE_TOTAL_ALLOC_MEMORY(E, OP, ...)     TOTAL_ALLOC_MEMORY((E)) OP __VA_ARGS__
 #define UPDATE_TOTAL_LIVE_BYTES(E, OP, ...)       TOTAL_LIVE_BYTES((E)) OP __VA_ARGS__
-#define UPDATE_TOTAL_PROMOTIONS(E, OP, ...)      TOTAL_PROMOTIONS((E)) OP __VA_ARGS__
+#define UPDATE_TOTAL_PROMOTIONS(E, OP, ...)       TOTAL_PROMOTIONS((E)) OP __VA_ARGS__
+#define UPDATE_TOTAL_PAGES(E, OP, ...)            TOTAL_PAGES((E)) OP __VA_ARGS__ 
 #define UPDATE_MIN_COLLECTION_TIME(E, OP, ...)    MIN_COLLECTION_TIME((E)) OP __VA_ARGS__
 #define UPDATE_MAX_COLLECTION_TIME(E, OP, ...)    MAX_COLLECTION_TIME((E)) OP __VA_ARGS__
 #define UPDATE_MAX_LIVE_HEAP(E, OP, ...)          MAX_LIVE_HEAP((E)) OP __VA_ARGS__
