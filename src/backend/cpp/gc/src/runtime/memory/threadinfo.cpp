@@ -47,22 +47,30 @@ void BSQMemoryTheadLocalInfo::loadNativeRootSet() noexcept
     //this code should load from the asm stack pointers and copy the native stack into the roots memory
     #ifdef __x86_64__
         register void** rbp asm("rbp");
+        register void** rsp asm("rsp");
+
         void** current_frame = rbp;
-        
+        void** top = rsp;
+
         /* Walk the stack */
         while (current_frame <= native_stack_base) {
             assert(IS_ALIGNED(current_frame));
             
             /* Walk entire frame looking for valid pointers */
             void** it = current_frame;
-            void* potential_ptr = *it;
-            if (PTR_IN_RANGE(potential_ptr) && PTR_NOT_IN_STACK(native_stack_base, current_frame, potential_ptr)) {
-                this->native_stack_contents.push_back(potential_ptr);
+            [[maybe_unused]] uint64_t epoch = reinterpret_cast<uint64_t>(*(current_frame + 1));
+            while(it >= top) {
+                void* potential_ptr = *it;
+                if (PTR_IN_RANGE(potential_ptr) && PTR_NOT_IN_STACK(native_stack_base, current_frame, potential_ptr)) {
+                    this->native_stack_contents.push_back(potential_ptr);
+                }
+
+                it--;
             }
-            it--;
             
-            current_frame++;
-        }
+            top = current_frame;
+            current_frame = static_cast<void**>(*current_frame);
+        } 
     
 
         /* Check contents of registers */
