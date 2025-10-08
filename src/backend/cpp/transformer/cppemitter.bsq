@@ -1650,10 +1650,10 @@ function emitBuiltinBodyImplementation(body: CPPAssembly::BuiltinBodyImplementat
 }
 
 function emitStandardBodyImplementation(body: CPPAssembly::StandardBodyImplementation, ctx: Context, indent: String): String {
-    let epoch = emitFrameMetaData(String::concat("    ", indent));
+    let md = emitFrameMetaData(String::concat("    ", indent));
     let stmts = String::joinAll("%n;", body.statements.map<String>(fn(stmt) => emitStatement(stmt, ctx, indent)));
 
-    return String::concat(epoch, stmts);
+    return String::concat(md, stmts);
 }
 
 function emitBodyImplementation(body: CPPAssembly::BodyImplementation, ctx: Context, indent: String): String {

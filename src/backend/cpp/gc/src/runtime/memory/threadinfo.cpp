@@ -53,6 +53,14 @@ void BSQMemoryTheadLocalInfo::loadNativeRootSet() noexcept
        
         bool in_tid = false;
 
+        //
+        // Im pretty confident that this works (is inefficient though), but
+        // there are most likely areas in the emitted code that dont quite 
+        // have the tid address pushed on the stack. Not sure what that is but
+        // I think that is the current problem where we eventually segfault
+        // (perhaps something to do with builtin bodies?)
+        //
+
         ArrayList<void*> potential_pointers;
         potential_pointers.initialize();
        
@@ -73,6 +81,7 @@ void BSQMemoryTheadLocalInfo::loadNativeRootSet() noexcept
                     }
                 }
 
+                // We will want to just pop pointers off instead
                 potential_pointers.clear();
                 potential_pointers.initialize();
                 in_tid = false;
