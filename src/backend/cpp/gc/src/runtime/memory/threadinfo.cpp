@@ -44,59 +44,27 @@ void BSQMemoryTheadLocalInfo::loadNativeRootSet() noexcept
 {
     this->native_stack_contents.initialize();
 
+    //
+    // An unfortunate and critical issue is the case where we when evaluating
+    // arguments trigger a collection. The critical issue here is our address
+    // of the threads ID will not yet be on the stack, so stack walk code will
+    // ignore said frame...
+    //
+
     //this code should load from the asm stack pointers and copy the native stack into the roots memory
     #ifdef __x86_64__
         register void** rbp asm("rbp");
-
         void** current_frame = rbp;
-        void** next_frame = static_cast<void**>(*current_frame);
-       
-        bool in_tid = false;
-
-        //
-        // Im pretty confident that this works (is inefficient though), but
-        // there are most likely areas in the emitted code that dont quite 
-        // have the tid address pushed on the stack. Not sure what that is but
-        // I think that is the current problem where we eventually segfault
-        // (perhaps something to do with builtin bodies?)
-        //
-
-        ArrayList<void*> potential_pointers;
-        potential_pointers.initialize();
-       
+        
         /* Walk the stack */
         while (current_frame <= native_stack_base) {
             assert(IS_ALIGNED(current_frame));
-           
-            // Finished processing full frame
-            if(current_frame == next_frame) {
-                // If our frame was created by the current thread then we need to check
-                // for possible stack roots
-                if(in_tid) {
-                    while(!potential_pointers.isEmpty()) {
-                        void* ptr = potential_pointers.pop_front();
-                        if(PTR_IN_RANGE(ptr) && PTR_NOT_IN_STACK(native_stack_base, current_frame, ptr)) {
-                            this->native_stack_contents.push_back(ptr);
-                        }
-                    }
-                }
-
-                // We will want to just pop pointers off instead
-                potential_pointers.clear();
-                potential_pointers.initialize();
-                in_tid = false;
-                next_frame = static_cast<void**>(*current_frame);
-            }
-
+            
             /* Walk entire frame looking for valid pointers */
             void** it = current_frame;
             void* potential_ptr = *it;
-
-            if(potential_ptr == &this->tl_id) {
-                in_tid = true;
-            }
-            else {
-                potential_pointers.push_back(potential_ptr);
+            if (PTR_IN_RANGE(potential_ptr) && PTR_NOT_IN_STACK(native_stack_base, current_frame, potential_ptr)) {
+                this->native_stack_contents.push_back(potential_ptr);
             }
             
             current_frame++;
