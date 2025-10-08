@@ -12,6 +12,13 @@
 #define 𝐚𝐬𝐬𝐞𝐫𝐭(E) if(!(E)) { 𝐚𝐛𝐨𝐫𝐭; }
 #define 𝐫𝐞𝐪𝐮𝐢𝐫𝐞𝐬(𝐄) 𝐚𝐬𝐬𝐞𝐫𝐭(𝐄)
 #define 𝐞𝐧𝐬𝐮𝐫𝐞𝐬(𝐄) 𝐚𝐬𝐬𝐞𝐫𝐭(𝐄)
+#define 𝐬𝐞𝐭𝐮𝐩_𝐟𝐫𝐚𝐦𝐞_𝐦𝐞𝐭𝐚𝐝𝐚𝐭𝐚() \
+do { \
+    [[maybe_unused]] volatile uint64_t* tid; \
+    tid = static_cast<uint64_t*>(&gtl_info.tl_id); \
+} while (0)
+
+//asm volatile("push %0" :: "r" (gtl_info.tl_id));
 
 #define 𝐰𝐡𝐢𝐥𝐞(s, guard, op) [&]() { auto state = s; while(guard(state)) { state = op(state); } return state; }()
 

@@ -47,32 +47,52 @@ void BSQMemoryTheadLocalInfo::loadNativeRootSet() noexcept
     //this code should load from the asm stack pointers and copy the native stack into the roots memory
     #ifdef __x86_64__
         register void** rbp asm("rbp");
-        register void** rsp asm("rsp");
 
         void** current_frame = rbp;
-        void** top = rsp;
+        void** next_frame = static_cast<void**>(*current_frame);
+       
+        bool in_tid = false;
 
+        ArrayList<void*> potential_pointers;
+        potential_pointers.initialize();
+       
         /* Walk the stack */
         while (current_frame <= native_stack_base) {
             assert(IS_ALIGNED(current_frame));
-            
-            /* Walk entire frame looking for valid pointers */
-            void** it = current_frame;
-            [[maybe_unused]] uint64_t epoch = reinterpret_cast<uint64_t>(*(current_frame + 1));
-            while(it >= top) {
-                void* potential_ptr = *it;
-                if (PTR_IN_RANGE(potential_ptr) && PTR_NOT_IN_STACK(native_stack_base, current_frame, potential_ptr)) {
-                    this->native_stack_contents.push_back(potential_ptr);
+           
+            // Finished processing full frame
+            if(current_frame == next_frame) {
+                // If our frame was created by the current thread then we need to check
+                // for possible stack roots
+                if(in_tid) {
+                    while(!potential_pointers.isEmpty()) {
+                        void* ptr = potential_pointers.pop_front();
+                        if(PTR_IN_RANGE(ptr) && PTR_NOT_IN_STACK(native_stack_base, current_frame, ptr)) {
+                            this->native_stack_contents.push_back(ptr);
+                        }
+                    }
                 }
 
-                it--;
+                potential_pointers.clear();
+                potential_pointers.initialize();
+                in_tid = false;
+                next_frame = static_cast<void**>(*current_frame);
+            }
+
+            /* Walk entire frame looking for valid pointers */
+            void** it = current_frame;
+            void* potential_ptr = *it;
+
+            if(potential_ptr == &this->tl_id) {
+                in_tid = true;
+            }
+            else {
+                potential_pointers.push_back(potential_ptr);
             }
             
-            top = current_frame;
-            current_frame = static_cast<void**>(*current_frame);
-        } 
+            current_frame++;
+        }
     
-
         /* Check contents of registers */
         PROCESS_REGISTER(native_stack_base, current_frame, rax)
         PROCESS_REGISTER(native_stack_base, current_frame, rbx)

@@ -72,6 +72,14 @@ function emitThisReference(): String {
     return String::concat("&", emitSpecialThis());
 }
 
+function emitPercentage(): CString {
+    return '%%;';
+}
+
+function emitFrameMetaData(indent: String): String {
+    return String::concat(indent, "𝐬𝐞𝐭𝐮𝐩_𝐟𝐫𝐚𝐦𝐞_𝐦𝐞𝐭𝐚𝐝𝐚𝐭𝐚();%n;");
+}
+
 %% Probably should name this better
 function generateAccess(tk: CPPAssembly::TypeKey, ctx: Context): String {
     let tag = ctx.asm.typeinfos.tryGet(tk)@some.tag;
@@ -1642,7 +1650,10 @@ function emitBuiltinBodyImplementation(body: CPPAssembly::BuiltinBodyImplementat
 }
 
 function emitStandardBodyImplementation(body: CPPAssembly::StandardBodyImplementation, ctx: Context, indent: String): String {
-    return String::joinAll("%n;", body.statements.map<String>(fn(stmt) => emitStatement(stmt, ctx, indent)));
+    let epoch = emitFrameMetaData(String::concat("    ", indent));
+    let stmts = String::joinAll("%n;", body.statements.map<String>(fn(stmt) => emitStatement(stmt, ctx, indent)));
+
+    return String::concat(epoch, stmts);
 }
 
 function emitBodyImplementation(body: CPPAssembly::BodyImplementation, ctx: Context, indent: String): String {
