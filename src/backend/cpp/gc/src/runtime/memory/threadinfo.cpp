@@ -44,13 +44,6 @@ void BSQMemoryTheadLocalInfo::loadNativeRootSet() noexcept
 {
     this->native_stack_contents.initialize();
 
-    //
-    // An unfortunate and critical issue is the case where we when evaluating
-    // arguments trigger a collection. The critical issue here is our address
-    // of the threads ID will not yet be on the stack, so stack walk code will
-    // ignore said frame...
-    //
-
     //this code should load from the asm stack pointers and copy the native stack into the roots memory
     #ifdef __x86_64__
         register void** rbp asm("rbp");

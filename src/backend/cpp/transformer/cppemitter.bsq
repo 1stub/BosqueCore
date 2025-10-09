@@ -76,11 +76,9 @@ function emitPercentage(): CString {
     return '%%;';
 }
 
-%*
-function emitFrameMetaData(indent: String): String {
-    return String::concat(indent, "𝐬𝐞𝐭𝐮𝐩_𝐟𝐫𝐚𝐦𝐞_𝐦𝐞𝐭𝐚𝐝𝐚𝐭𝐚();%n;");
+function emitFrameMetaData(e: String): String {
+    return String::concat("𝐬𝐞𝐭𝐮𝐩_𝐟𝐫𝐚𝐦𝐞_𝐦𝐞𝐭𝐚𝐝𝐚𝐭𝐚(", e, ", &gtl_info.tl_id)");
 }
-*%
 
 %% Probably should name this better
 function generateAccess(tk: CPPAssembly::TypeKey, ctx: Context): String {
@@ -663,10 +661,10 @@ function emitPostfixInvokeStatic(op: CPPAssembly::PostfixInvokeStatic, rootexp: 
 
     let name = generateMethodName(op.resolvedTrgt, op.resolvedType.tkeystr, ctx);
     if(args === "") {
-        return String::concat(name, "(", thisarg, ")");
+        return emitFrameMetaData(String::concat(name, "(", thisarg, ")"));
     }
     else {
-        return String::concat(name, "(", thisarg, ", ", args, ")");       
+        return emitFrameMetaData(String::concat(name, "(", thisarg, ", ", args, ")"));
     }
 }
 
