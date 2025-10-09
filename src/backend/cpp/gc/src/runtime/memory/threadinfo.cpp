@@ -17,6 +17,11 @@ thread_local BSQMemoryTheadLocalInfo gtl_info;
     native_register_contents.R = NULL;                                        \
     if(PTR_IN_RANGE(R) && PTR_NOT_IN_STACK(BASE, CURR, R)) { native_register_contents.R = R; }
 
+struct FrameMetaData {
+    uint64_t* tid;
+    uint64_t  epoch;
+};
+
 void BSQMemoryTheadLocalInfo::initialize(size_t ntl_id, void** caller_rbp) noexcept
 {
     assert(caller_rbp != nullptr);
@@ -47,20 +52,48 @@ void BSQMemoryTheadLocalInfo::loadNativeRootSet() noexcept
     //this code should load from the asm stack pointers and copy the native stack into the roots memory
     #ifdef __x86_64__
         register void** rbp asm("rbp");
+        register void** rsp asm("rsp");
+
         void** current_frame = rbp;
-        
-        /* Walk the stack */
+        void** next_frame = (void**)*current_frame;
+        void** top = rsp;
+
+        //
+        // This loop still is incorrect updates, but I do believe the idea is
+        // on right track!
+        //
+
+        // Walk the stack
         while (current_frame <= native_stack_base) {
             assert(IS_ALIGNED(current_frame));
-            
-            /* Walk entire frame looking for valid pointers */
-            void** it = current_frame;
-            void* potential_ptr = *it;
-            if (PTR_IN_RANGE(potential_ptr) && PTR_NOT_IN_STACK(native_stack_base, current_frame, potential_ptr)) {
-                this->native_stack_contents.push_back(potential_ptr);
+           
+            //
+            // Could compute the difference between rbp and &gtl_info
+            // then add it to iterator
+            //
+
+            // Walk up stack to find frame start
+            while(*current_frame != &gtl_info.tl_id) {
+                if(current_frame == next_frame) {
+                    next_frame = (void**)*current_frame;
+                }
+                current_frame++;
             }
-            
-            current_frame++;
+
+            // Something like this should give us space for storing epoch and tid
+            [[maybe_unused]] FrameMetaData fmd = *reinterpret_cast<FrameMetaData*>(*current_frame);
+
+            void** it = current_frame;
+            while(it >= top) {
+                void* potential_ptr = *it;
+                if (PTR_IN_RANGE(potential_ptr) && PTR_NOT_IN_STACK(native_stack_base, current_frame, potential_ptr)) {
+                    this->native_stack_contents.push_back(potential_ptr);
+                }
+
+                it--;
+            }
+
+            top = current_frame;
         }
     
         /* Check contents of registers */
