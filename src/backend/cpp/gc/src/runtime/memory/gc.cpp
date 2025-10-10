@@ -346,11 +346,14 @@ static void walkStack(BSQMemoryTheadLocalInfo& tinfo) noexcept
             checkPotentialPtr(*curr, tinfo);
             curr++;
         }
-
         GlobalDataStorage::g_global_data.needs_scanning = false;
     }
 
 #ifdef BSQ_GC_CHECK_ENABLED
+    if(tinfo.enable_global_rescan) {
+        GlobalDataStorage::g_global_data.needs_scanning = true;
+    }
+
     if(tinfo.disable_stack_refs_for_tests) {
         return;
     }

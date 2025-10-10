@@ -13,12 +13,6 @@
 #define 𝐫𝐞𝐪𝐮𝐢𝐫𝐞𝐬(𝐄) 𝐚𝐬𝐬𝐞𝐫𝐭(𝐄)
 #define 𝐞𝐧𝐬𝐮𝐫𝐞𝐬(𝐄) 𝐚𝐬𝐬𝐞𝐫𝐭(𝐄)
 
-#define 𝐬𝐞𝐭𝐮𝐩_𝐟𝐫𝐚𝐦𝐞_𝐦𝐞𝐭𝐚𝐝𝐚𝐭𝐚(E, TID) \
-[&]() { \
-    *(void**)alloca(sizeof(uint64_t)) = (void*)(TID); \
-    return E; \
-}()
-
 #define 𝐰𝐡𝐢𝐥𝐞(s, guard, op) [&]() { auto state = s; while(guard(state)) { state = op(state); } return state; }()
 
 namespace __CoreCpp {

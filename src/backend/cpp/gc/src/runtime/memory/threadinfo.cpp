@@ -52,48 +52,44 @@ void BSQMemoryTheadLocalInfo::loadNativeRootSet() noexcept
     //this code should load from the asm stack pointers and copy the native stack into the roots memory
     #ifdef __x86_64__
         register void** rbp asm("rbp");
-        register void** rsp asm("rsp");
 
         void** current_frame = rbp;
         void** next_frame = (void**)*current_frame;
-        void** top = rsp;
+        void** top = rbp;
 
-        //
-        // This loop still is incorrect updates, but I do believe the idea is
-        // on right track!
-        //
+        size_t frames = 0;
 
         // Walk the stack
         while (current_frame <= native_stack_base) {
             assert(IS_ALIGNED(current_frame));
-           
-            //
-            // Could compute the difference between rbp and &gtl_info
-            // then add it to iterator
-            //
 
-            // Walk up stack to find frame start
-            while(*current_frame != &gtl_info.tl_id) {
-                if(current_frame == next_frame) {
-                    next_frame = (void**)*current_frame;
-                }
-                current_frame++;
-            }
-
-            // Something like this should give us space for storing epoch and tid
-            [[maybe_unused]] FrameMetaData fmd = *reinterpret_cast<FrameMetaData*>(*current_frame);
-
-            void** it = current_frame;
-            while(it >= top) {
-                void* potential_ptr = *it;
-                if (PTR_IN_RANGE(potential_ptr) && PTR_NOT_IN_STACK(native_stack_base, current_frame, potential_ptr)) {
-                    this->native_stack_contents.push_back(potential_ptr);
+            if(current_frame == next_frame) {
+                next_frame = (void**)*current_frame;
+                
+                // Leave top for first frame ensuring we scan the full frame
+                if(frames != 0) {
+                    top = (void**)*top;
                 }
 
-                it--;
+                frames++;
             }
+            
+            if(*current_frame == &gtl_info.tl_id) {
+                // Something like this should give us space for storing epoch and tid
+                [[maybe_unused]] FrameMetaData fmd = *reinterpret_cast<FrameMetaData*>(*current_frame);
 
-            top = current_frame;
+                void** it = current_frame;
+                while(it >= top) {
+                    void* potential_ptr = *it;
+                    if (PTR_IN_RANGE(potential_ptr) && PTR_NOT_IN_STACK(native_stack_base, current_frame, potential_ptr)) {
+                        this->native_stack_contents.push_back(potential_ptr);
+                    }
+
+                    it--;
+                }
+            }
+            
+            current_frame++;
         }
     
         /* Check contents of registers */
