@@ -482,6 +482,19 @@ static void markingWalk(BSQMemoryTheadLocalInfo& tinfo) noexcept
     gtl_info.pending_roots.clear();
 }
 
+///////////////////////////////
+// 1. Fix high32bits of type pointer not setting when we make a new thread
+//     - since gtl_info is thread_local when we create the decs thread this value 
+//       is not set leading to weird bugs
+// 2. Move pending_decs and decremented_pages out of gtl_info
+// 3. Now we can create a new thread at end of collect, pass in pendingDecs func,
+//    and so long as we are careful to use mutexes when updating rcs of objects
+//    we will be able to do decrements on a separate thread
+//
+// ^ I think this is the basic todos list, but we should think about htis some
+// and see if we can come up with a nice modular design
+//
+
 void collect() noexcept
 {
     COLLECTION_STATS_START();
