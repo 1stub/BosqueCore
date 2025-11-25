@@ -585,6 +585,9 @@ void collect() noexcept
     UPDATE_COLLECTION_TIMES(gtl_info);
     UPDATE_MEMSTATS_TOTALS(gtl_info);
 
+    //
+    // I think this std::ref is fucking stuff up - lets investigate tomorrow
+    //
     if(!decsinfo.pending_decs.isEmpty()) {
         std::thread(finishDecrements, std::ref(decsinfo)).detach();
     }
