@@ -93,18 +93,6 @@ struct DecsProcessor {
         this->cv.notify_one();
     }
 
-    void pauseWorker(std::unique_lock<std::mutex>& lk)
-    {
-        this->stop_requested = true;
-        this->worker_state = WorkerState::Running;
-        
-        lk.unlock();
-        this->cv.notify_one();
-        
-        this->worker.join();
-        GlobalThreadAllocInfo::s_thread_counter--;
-    }
-
     void signalFinished()
     {
         std::unique_lock lk(this->mtx);
