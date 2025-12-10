@@ -61,46 +61,43 @@ struct DecsProcessor {
         Merging,
         Stopped
     };
-    
+
     WorkerState worker_state;
     bool stop_requested;
 
     DecsProcessor(BSQMemoryTheadLocalInfo* tinfo) : 
         cv(), mtx(), worker(&DecsProcessor::process, this, tinfo), pending(), 
-        processDecfp(nullptr), worker_state(WorkerState::Paused), 
-        stop_requested(false) 
+        processDecfp(nullptr), worker_state(WorkerState::Paused), stop_requested(false) 
     { 
         GlobalThreadAllocInfo::s_thread_counter++;
     }
 
     void requestMergeAndPause(std::unique_lock<std::mutex>& lk)
     {
-        worker_state = WorkerState::Merging;
-        
+        this->worker_state = WorkerState::Merging;
+
         lk.unlock();
-        cv.notify_one();
+        this->cv.notify_one();
         lk.lock();
-        
-        // Wait for worker to acknowledge it's paused
-        cv.wait(lk, [this]{ 
-            return worker_state == WorkerState::Paused; 
-        });
-        
+
+        // Ack that the worker is fully paused
+        cv.wait(lk, [this]{ return this->worker_state == WorkerState::Paused; });
+
         // Items can safely be inserted into this->pending now
     }
 
     void resumeAfterMerge(std::unique_lock<std::mutex>& lk)
     {
-        worker_state = WorkerState::Running;
+        this->worker_state = WorkerState::Running;
         lk.unlock();
-        cv.notify_one();
+        this->cv.notify_one();
     }
 
-    void signalFinished()
+    void pauseWorker(std::unique_lock<std::mutex>& lk)
     {
         std::unique_lock lk(mtx);
         stop_requested = true;
-        worker_state = WorkerState::Running; // Wake up if paused
+        worker_state = WorkerState::Running;
         
         lk.unlock();
         cv.notify_one();
@@ -109,50 +106,60 @@ struct DecsProcessor {
         GlobalThreadAllocInfo::s_thread_counter--;
     }
 
+    void signalFinished()
+    {
+        std::unique_lock lk(this->mtx);
+        this->stop_requested = true;
+
+        lk.unlock();
+        this->cv.notify_one();
+
+        // Worker thread ack 
+        cv.wait(lk, [this]{ return this->worker_state == WorkerState::Paused; });
+
+        this->worker.join();
+        GlobalThreadAllocInfo::s_thread_counter--;
+    }
+
     void process(BSQMemoryTheadLocalInfo* tinfo)
     {
-        std::unique_lock lk(mtx);
-        while(!stop_requested) {
-            // Handle different states
-            if (worker_state == WorkerState::Paused) {
-                cv.wait(lk, [this]{
-                    return worker_state != WorkerState::Paused || stop_requested;
+        std::unique_lock lk(this->mtx);
+        while(!this->stop_requested) {
+            if(this->worker_state == WorkerState::Paused) {
+                cv.wait(lk, [this] {
+                    return this->worker_state != WorkerState::Paused || this->stop_requested;
                 });
             }
-            
-            if (stop_requested) {
+
+            if(this->stop_requested) {
                 break;
             }
-            
-            if (worker_state == WorkerState::Merging) {
-                // Pause for merge
+
+            if(worker_state == WorkerState::Merging) {
                 worker_state = WorkerState::Paused;
                 lk.unlock();
-                cv.notify_one(); // Notify main thread we're paused
+                cv.notify_one(); // Notify main thread of merge
                 lk.lock();
                 continue;
             }
-            
-            // Running state - process items
-            if (worker_state == WorkerState::Running) {
-                while(!pending.isEmpty() && !stop_requested) {
-                    void* obj = pending.pop_front();
-                    
-                    // Need to unlock during processing to avoid holding lock
+
+            if(this->worker_state == WorkerState::Running) {
+                while(!this->pending.isEmpty() && !this->stop_requested) {
+                    void* obj = this->pending.pop_front();
+
+                    // Lets unlock just to make sure no fighting with main thread occurs
                     lk.unlock();
                     processDecfp(obj, *tinfo);
                     lk.lock();
-                    
-                    // Check if state changed during processing
-                    if (worker_state != WorkerState::Running) {
+
+                    if(this->worker_state != WorkerState::Running) {
                         break;
                     }
                 }
             }
-            
-            // If nothing to process and not stopped, go to paused state
-            if (pending.isEmpty() && !stop_requested) {
-                worker_state = WorkerState::Paused;
+
+            if(this->pending.isEmpty() && !this->stop_requested) {
+                this->worker_state = WorkerState::Paused;
             }
         }
     }
