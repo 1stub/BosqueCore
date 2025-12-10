@@ -95,7 +95,6 @@ struct DecsProcessor {
 
     void pauseWorker(std::unique_lock<std::mutex>& lk)
     {
-        std::unique_lock lk(mtx);
         stop_requested = true;
         worker_state = WorkerState::Running;
         
