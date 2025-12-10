@@ -55,13 +55,19 @@ struct DecsProcessor {
     DecsList pending;
     void (*processDecfp)(void*, BSQMemoryTheadLocalInfo&);
 
-    bool worker_paused;
-    bool merge_requested;
+    enum class WorkerState {
+        Running,
+        Paused,
+        Merging,
+        Stopped
+    };
+    
+    WorkerState worker_state;
     bool stop_requested;
 
     DecsProcessor(BSQMemoryTheadLocalInfo* tinfo) : 
         cv(), mtx(), worker(&DecsProcessor::process, this, tinfo), pending(), 
-        processDecfp(nullptr), worker_paused(true), merge_requested(false), 
+        processDecfp(nullptr), worker_state(WorkerState::Paused), 
         stop_requested(false) 
     { 
         GlobalThreadAllocInfo::s_thread_counter++;
@@ -69,82 +75,84 @@ struct DecsProcessor {
 
     void requestMergeAndPause(std::unique_lock<std::mutex>& lk)
     {
-        this->merge_requested = true;
-
+        worker_state = WorkerState::Merging;
+        
         lk.unlock();
-        this->cv.notify_one();
+        cv.notify_one();
         lk.lock();
-
-        // Ack that the worker is fully paused
-        cv.wait(lk, [this]{ return this->worker_paused; });
-
+        
+        // Wait for worker to acknowledge it's paused
+        cv.wait(lk, [this]{ 
+            return worker_state == WorkerState::Paused; 
+        });
+        
         // Items can safely be inserted into this->pending now
     }
 
     void resumeAfterMerge(std::unique_lock<std::mutex>& lk)
     {
-        this->merge_requested = false;
-        this->worker_paused = false;
-
+        worker_state = WorkerState::Running;
         lk.unlock();
-        this->cv.notify_one();
-    }
-
-    void pauseWorker(std::unique_lock<std::mutex>& lk)
-    {
-        this->worker_paused = true;
-        this->cv.notify_one(); 
-        cv.wait(lk, [this]{ return !this->worker_paused; });
+        cv.notify_one();
     }
 
     void signalFinished()
     {
-        std::unique_lock lk(this->mtx);
-        this->stop_requested = true;
-
+        std::unique_lock lk(mtx);
+        stop_requested = true;
+        worker_state = WorkerState::Running; // Wake up if paused
+        
         lk.unlock();
-        this->cv.notify_one();
-
-        // Worker thread ack 
-        cv.wait(lk, [this]{ return this->worker_paused; });
-
-        this->worker.join();
+        cv.notify_one();
+        
+        worker.join();
         GlobalThreadAllocInfo::s_thread_counter--;
     }
 
-    // I am skeptical of the !workerpaused && !empty.
-    // we could (?) request merging causing worker to be paused WHILE ther 
-    // is shit still in the pending list (this would lead the decs thread to be stuck!)
     void process(BSQMemoryTheadLocalInfo* tinfo)
     {
-        std::unique_lock lk(this->mtx);
-        while(!this->stop_requested) {
-            this->cv.wait(lk, [this]{
-                return !this->worker_paused
-                    || this->merge_requested
-                    || this->stop_requested;
-            });
-
-            // Enter a paused state before exiting
-            if(this->stop_requested) {
-                this->worker_paused = true;
-                lk.unlock();
-                this->cv.notify_one(); 
-                return;
+        std::unique_lock lk(mtx);
+        while(!stop_requested) {
+            // Handle different states
+            if (worker_state == WorkerState::Paused) {
+                cv.wait(lk, [this]{
+                    return worker_state != WorkerState::Paused || stop_requested;
+                });
             }
-
-            if(this->merge_requested) {
-                this->pauseWorker(lk);
+            
+            if (stop_requested) {
+                break;
+            }
+            
+            if (worker_state == WorkerState::Merging) {
+                // Pause for merge
+                worker_state = WorkerState::Paused;
+                lk.unlock();
+                cv.notify_one(); // Notify main thread we're paused
+                lk.lock();
                 continue;
             }
-
-            while(!this->pending.isEmpty()) {
-                void* obj = this->pending.pop_front();
-                this->processDecfp(obj, *tinfo);         
-
-                if(this->merge_requested || this->stop_requested) {
-                    break;
+            
+            // Running state - process items
+            if (worker_state == WorkerState::Running) {
+                while(!pending.isEmpty() && !stop_requested) {
+                    void* obj = pending.pop_front();
+                    
+                    // Need to unlock during processing to avoid holding lock
+                    lk.unlock();
+                    processDecfp(obj, *tinfo);
+                    lk.lock();
+                    
+                    // Check if state changed during processing
+                    if (worker_state != WorkerState::Running) {
+                        break;
+                    }
                 }
+            }
+            
+            // If nothing to process and not stopped, go to paused state
+            if (pending.isEmpty() && !stop_requested) {
+                worker_state = WorkerState::Paused;
             }
         }
     }
