@@ -99,9 +99,9 @@ struct DecsProcessor {
         this->worker_state = WorkerState::Running;
         
         lk.unlock();
-        cv.notify_one();
+        this->cv.notify_one();
         
-        worker.join();
+        this->worker.join();
         GlobalThreadAllocInfo::s_thread_counter--;
     }
 
