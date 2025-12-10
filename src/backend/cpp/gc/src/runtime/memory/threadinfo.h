@@ -95,8 +95,8 @@ struct DecsProcessor {
 
     void pauseWorker(std::unique_lock<std::mutex>& lk)
     {
-        stop_requested = true;
-        worker_state = WorkerState::Running;
+        this->stop_requested = true;
+        this->worker_state = WorkerState::Running;
         
         lk.unlock();
         cv.notify_one();
@@ -134,10 +134,10 @@ struct DecsProcessor {
                 break;
             }
 
-            if(worker_state == WorkerState::Merging) {
-                worker_state = WorkerState::Paused;
+            if(this->worker_state == WorkerState::Merging) {
+                this->worker_state = WorkerState::Paused;
                 lk.unlock();
-                cv.notify_one(); // Notify main thread of merge
+                this->cv.notify_one(); // Notify main thread of merge
                 lk.lock();
                 continue;
             }
@@ -148,7 +148,7 @@ struct DecsProcessor {
 
                     // Lets unlock just to make sure no fighting with main thread occurs
                     lk.unlock();
-                    processDecfp(obj, *tinfo);
+                    this->processDecfp(obj, *tinfo);
                     lk.lock();
 
                     if(this->worker_state != WorkerState::Running) {
