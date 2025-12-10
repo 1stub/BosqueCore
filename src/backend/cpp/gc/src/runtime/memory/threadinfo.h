@@ -112,12 +112,15 @@ struct DecsProcessor {
         GlobalThreadAllocInfo::s_thread_counter--;
     }
 
+    // I am skeptical of the !workerpaused && !empty.
+    // we could (?) request merging causing worker to be paused WHILE ther 
+    // is shit still in the pending list (this would lead the decs thread to be stuck!)
     void process(BSQMemoryTheadLocalInfo* tinfo)
     {
         std::unique_lock lk(this->mtx);
         while(!this->stop_requested) {
             this->cv.wait(lk, [this]{
-                return (!this->worker_paused && !this->pending.isEmpty())
+                return !this->worker_paused
                     || this->merge_requested
                     || this->stop_requested;
             });
