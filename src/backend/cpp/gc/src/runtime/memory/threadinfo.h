@@ -57,6 +57,7 @@ struct DecsProcessor {
 
     enum class WorkerState {
         Running,
+        Resuming,
         Paused,
         Merging,
         Stopped
@@ -82,16 +83,18 @@ struct DecsProcessor {
         lk.lock();
 
         // Ack that the worker is fully paused
-        cv.wait(lk, [this]{ return this->worker_state == WorkerState::Paused; });
+        this->cv.wait(lk, [this]{ return this->worker_state == WorkerState::Paused; });
 
         // Items can safely be inserted into this->pending now
     }
 
     void resumeAfterMerge(std::unique_lock<std::mutex>& lk)
     {
-        this->worker_state = WorkerState::Running;
+        this->worker_state = WorkerState::Resuming;
         lk.unlock();
         this->cv.notify_one();
+
+        this->cv.wait(lk, [this]{ return this->worker_state == WorkerState::Running; });
     }
 
     void signalFinished()
@@ -103,10 +106,18 @@ struct DecsProcessor {
         this->cv.notify_one();
 
         // Worker thread ack 
-        cv.wait(lk, [this]{ return this->worker_state == WorkerState::Paused; });
+        this->cv.wait(lk, [this]{ return this->worker_state == WorkerState::Paused; });
 
         this->worker.join();
         GlobalThreadAllocInfo::s_thread_counter--;
+    }
+
+    void updateWorkerStateAndNotify(WorkerState new_state, std::unique_lock<std::mutex>& lk)
+    {
+        this->worker_state = new_state;
+        lk.unlock();
+        this->cv.notify_one(); // Notify main thread of state change
+        lk.lock();
     }
 
     void process(BSQMemoryTheadLocalInfo* tinfo)
@@ -114,7 +125,7 @@ struct DecsProcessor {
         std::unique_lock lk(this->mtx);
         while(!this->stop_requested) {
             if(this->worker_state == WorkerState::Paused) {
-                cv.wait(lk, [this] {
+                this->cv.wait(lk, [this] {
                     return this->worker_state != WorkerState::Paused || this->stop_requested;
                 });
             }
@@ -124,11 +135,13 @@ struct DecsProcessor {
             }
 
             if(this->worker_state == WorkerState::Merging) {
-                this->worker_state = WorkerState::Paused;
-                lk.unlock();
-                this->cv.notify_one(); // Notify main thread of merge
-                lk.lock();
+                updateWorkerStateAndNotify(WorkerState::Paused, lk);
                 continue;
+            }
+
+            // Ensuring we have fully ack'd mains request to resume is important in testing
+            if(this->worker_state == WorkerState::Resuming) {
+                updateWorkerStateAndNotify(WorkerState::Running, lk);
             }
 
             if(this->worker_state == WorkerState::Running) {
