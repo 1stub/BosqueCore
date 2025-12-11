@@ -168,7 +168,7 @@ void processDec(void* obj, BSQMemoryTheadLocalInfo& tinfo) noexcept
     }
 
     decrementObject(obj);
-    updateDecrementedObject(tinfo, obj, tinfo.decs.pending);
+    updateDecrementedObject(tinfo, obj, g_decs_prcsr.pending);
 
     PageInfo* p = PageInfo::extractPageFromPointer(obj);
     updateDecrementedPages(tinfo, p);
@@ -176,13 +176,13 @@ void processDec(void* obj, BSQMemoryTheadLocalInfo& tinfo) noexcept
 
 static void mergeDecList(BSQMemoryTheadLocalInfo& tinfo)
 {
-    if(!tinfo.decs.pending.isInitialized()) {
-        tinfo.decs.pending.initialize();
+    if(!g_decs_prcsr.pending.isInitialized()) {
+        g_decs_prcsr.pending.initialize();
     }
 
     while(!tinfo.decs_batch.isEmpty()) {
         void* obj = tinfo.decs_batch.pop_front();
-        tinfo.decs.pending.push_back(obj);
+        g_decs_prcsr.pending.push_back(obj);
     }
     tinfo.decs_batch.clear();
     tinfo.decs_batch.initialize(); // Needed?
@@ -192,8 +192,8 @@ static void mergeDecList(BSQMemoryTheadLocalInfo& tinfo)
 // then signal processing can continue
 static void tryMergeDecList(BSQMemoryTheadLocalInfo& tinfo)
 {
-    if(tinfo.decs.processDecfp == nullptr) {
-        tinfo.decs.processDecfp = processDec;
+    if(g_decs_prcsr.processDecfp == nullptr) {
+        g_decs_prcsr.processDecfp = processDec;
     }
 
     if(!tinfo.decs_batch.isEmpty()) {
@@ -552,8 +552,8 @@ void collect() noexcept
     COLLECTION_STATS_START();
 
     // Pause decs thread while we run a collection
-    std::unique_lock lk(gtl_info.decs.mtx);
-    gtl_info.decs.requestMergeAndPause(lk);
+    std::unique_lock lk(g_decs_prcsr.mtx);
+    g_decs_prcsr.requestMergeAndPause(lk);
     
     gtl_info.pending_young.initialize();
 
@@ -589,7 +589,7 @@ void collect() noexcept
     updateRoots();
 
     // Unpause now that everything has been processed
-    gtl_info.decs.resumeAfterMerge(lk);
+    g_decs_prcsr.resumeAfterMerge(lk);
 
     COLLECTION_STATS_END(gtl_info, collection_times);
     UPDATE_COLLECTION_TIMES(gtl_info);

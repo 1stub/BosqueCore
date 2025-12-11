@@ -5,7 +5,6 @@
 #include <mutex>
 #include <condition_variable>
 #include <thread>
-#include <atomic>
 
 #define InitBSQMemoryTheadLocalInfo() { ALLOC_LOCK_ACQUIRE(); register void** rbp asm("rbp"); gtl_info.initialize(GlobalThreadAllocInfo::s_thread_counter++, rbp); ALLOC_LOCK_RELEASE(); }
 
@@ -63,23 +62,17 @@ struct DecsProcessor {
         Stopped
     };
 
-    std::atomic<WorkerState> worker_state;
-    std::atomic<bool> stop_requested;
-    std::atomic<bool> initialized;
+    WorkerState worker_state;
+    bool stop_requested;
 
     DecsProcessor(BSQMemoryTheadLocalInfo* tinfo) : 
         cv(), mtx(), worker(), pending(), processDecfp(nullptr), 
-        worker_state(WorkerState::Paused), stop_requested(false),
-        initialized(false)
-    {
-        GlobalThreadAllocInfo::s_thread_counter++;
+        worker_state(WorkerState::Paused), stop_requested(false) 
+    { 
         this->worker = std::thread(&DecsProcessor::process, this, tinfo);
-
-        // Make sure worker is fully initialized
-        std::unique_lock lk(this->mtx);
-        cv.wait(lk, [this] { return initialized.load(); });
+        GlobalThreadAllocInfo::s_thread_counter++;
     }
-    
+
     void requestMergeAndPause(std::unique_lock<std::mutex>& lk)
     {
         this->worker_state = WorkerState::Merging;
@@ -89,7 +82,7 @@ struct DecsProcessor {
         lk.lock();
 
         // Ack that the worker is fully paused
-        cv.wait(lk, [this]{ return this->worker_state.load() == WorkerState::Paused; });
+        cv.wait(lk, [this]{ return this->worker_state == WorkerState::Paused; });
 
         // Items can safely be inserted into this->pending now
     }
@@ -110,7 +103,7 @@ struct DecsProcessor {
         this->cv.notify_one();
 
         // Worker thread ack 
-        cv.wait(lk, [this]{ return this->worker_state.load() == WorkerState::Paused; });
+        cv.wait(lk, [this]{ return this->worker_state == WorkerState::Paused; });
 
         this->worker.join();
         GlobalThreadAllocInfo::s_thread_counter--;
@@ -119,22 +112,18 @@ struct DecsProcessor {
     void process(BSQMemoryTheadLocalInfo* tinfo)
     {
         std::unique_lock lk(this->mtx);
-
-        this->initialized = true;
-        cv.notify_one();
-
-        while(!this->stop_requested.load()) {
-            if(this->worker_state.load() == WorkerState::Paused) {
+        while(!this->stop_requested) {
+            if(this->worker_state == WorkerState::Paused) {
                 cv.wait(lk, [this] {
-                    return this->worker_state.load() != WorkerState::Paused || this->stop_requested.load();
+                    return this->worker_state != WorkerState::Paused || this->stop_requested;
                 });
             }
 
-            if(this->stop_requested.load()) {
+            if(this->stop_requested) {
                 break;
             }
 
-            if(this->worker_state.load() == WorkerState::Merging) {
+            if(this->worker_state == WorkerState::Merging) {
                 this->worker_state = WorkerState::Paused;
                 lk.unlock();
                 this->cv.notify_one(); // Notify main thread of merge
@@ -142,21 +131,18 @@ struct DecsProcessor {
                 continue;
             }
 
-            if(this->worker_state.load() == WorkerState::Running) {
-                while(!this->pending.isEmpty() && !this->stop_requested.load()) {
+            if(this->worker_state == WorkerState::Running) {
+                while(!this->pending.isEmpty() && !this->stop_requested) {
                     void* obj = this->pending.pop_front();
-
-                    lk.unlock();
                     this->processDecfp(obj, *tinfo);
-                    lk.lock();
 
-                    if(this->worker_state.load() != WorkerState::Running) {
+                    if(this->worker_state != WorkerState::Running) {
                         break;
                     }
                 }
             }
 
-            if(this->pending.isEmpty() && !this->stop_requested.load()) {
+            if(this->pending.isEmpty() && !this->stop_requested) {
                 this->worker_state = WorkerState::Paused;
             }
         }
@@ -187,7 +173,6 @@ struct BSQMemoryTheadLocalInfo
     int32_t forward_table_index;
     void** forward_table;
 
-    DecsProcessor decs; 
     DecsList decs_batch; // Decrements able to be done without needing decs thread
 
     uint32_t decd_pages_idx = 0;
@@ -217,8 +202,8 @@ struct BSQMemoryTheadLocalInfo
         tl_id(0), g_gcallocs(nullptr), native_stack_base(nullptr), native_stack_contents(), 
         native_register_contents(), roots_count(0), roots(nullptr), old_roots_count(0), 
         old_roots(nullptr), forward_table_index(FWD_TABLE_START), forward_table(nullptr), 
-        decs(this), decs_batch(), decd_pages_idx(0), decd_pages(), pending_roots(), 
-        visit_stack(), pending_young(), max_decrement_count(BSQ_INITIAL_MAX_DECREMENT_COUNT) { }
+        decs_batch(), decd_pages_idx(0), decd_pages(), pending_roots(), visit_stack(), 
+        pending_young(), max_decrement_count(BSQ_INITIAL_MAX_DECREMENT_COUNT) { }
     BSQMemoryTheadLocalInfo& operator=(BSQMemoryTheadLocalInfo&) = delete;
     BSQMemoryTheadLocalInfo(BSQMemoryTheadLocalInfo&) = delete;
 
@@ -259,3 +244,4 @@ struct BSQMemoryTheadLocalInfo
 };
 
 extern thread_local BSQMemoryTheadLocalInfo gtl_info;
+extern thread_local DecsProcessor g_decs_prcsr;
