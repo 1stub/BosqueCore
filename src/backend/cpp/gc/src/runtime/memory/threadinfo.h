@@ -5,6 +5,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <thread>
+#include <atomic>
 
 #define InitBSQMemoryTheadLocalInfo() { ALLOC_LOCK_ACQUIRE(); register void** rbp asm("rbp"); gtl_info.initialize(GlobalThreadAllocInfo::s_thread_counter++, rbp); ALLOC_LOCK_RELEASE(); }
 
@@ -62,16 +63,23 @@ struct DecsProcessor {
         Stopped
     };
 
-    WorkerState worker_state;
-    bool stop_requested;
+    std::atomic<WorkerState> worker_state;
+    std::atomic<bool> stop_requested;
+    std::atomic<bool> initialized;
 
     DecsProcessor(BSQMemoryTheadLocalInfo* tinfo) : 
-        cv(), mtx(), worker(&DecsProcessor::process, this, tinfo), pending(), 
-        processDecfp(nullptr), worker_state(WorkerState::Paused), stop_requested(false) 
-    { 
+        cv(), mtx(), worker(), pending(), processDecfp(nullptr), 
+        worker_state(WorkerState::Paused), stop_requested(false),
+        initialized(false)
+    {
         GlobalThreadAllocInfo::s_thread_counter++;
-    }
+        this->worker = std::thread(&DecsProcessor::process, this, tinfo);
 
+        // Make sure worker is fully initialized
+        std::unique_lock lk(this->mtx);
+        cv.wait(lk, [this] { return initialized.load(); });
+    }
+    
     void requestMergeAndPause(std::unique_lock<std::mutex>& lk)
     {
         this->worker_state = WorkerState::Merging;
@@ -81,7 +89,7 @@ struct DecsProcessor {
         lk.lock();
 
         // Ack that the worker is fully paused
-        cv.wait(lk, [this]{ return this->worker_state == WorkerState::Paused; });
+        cv.wait(lk, [this]{ return this->worker_state.load() == WorkerState::Paused; });
 
         // Items can safely be inserted into this->pending now
     }
@@ -102,7 +110,7 @@ struct DecsProcessor {
         this->cv.notify_one();
 
         // Worker thread ack 
-        cv.wait(lk, [this]{ return this->worker_state == WorkerState::Paused; });
+        cv.wait(lk, [this]{ return this->worker_state.load() == WorkerState::Paused; });
 
         this->worker.join();
         GlobalThreadAllocInfo::s_thread_counter--;
@@ -111,18 +119,22 @@ struct DecsProcessor {
     void process(BSQMemoryTheadLocalInfo* tinfo)
     {
         std::unique_lock lk(this->mtx);
-        while(!this->stop_requested) {
-            if(this->worker_state == WorkerState::Paused) {
+
+        this->initialized = true;
+        cv.notify_one();
+
+        while(!this->stop_requested.load()) {
+            if(this->worker_state.load() == WorkerState::Paused) {
                 cv.wait(lk, [this] {
-                    return this->worker_state != WorkerState::Paused || this->stop_requested;
+                    return this->worker_state.load() != WorkerState::Paused || this->stop_requested.load();
                 });
             }
 
-            if(this->stop_requested) {
+            if(this->stop_requested.load()) {
                 break;
             }
 
-            if(this->worker_state == WorkerState::Merging) {
+            if(this->worker_state.load() == WorkerState::Merging) {
                 this->worker_state = WorkerState::Paused;
                 lk.unlock();
                 this->cv.notify_one(); // Notify main thread of merge
@@ -130,18 +142,18 @@ struct DecsProcessor {
                 continue;
             }
 
-            if(this->worker_state == WorkerState::Running) {
-                while(!this->pending.isEmpty() && !this->stop_requested) {
+            if(this->worker_state.load() == WorkerState::Running) {
+                while(!this->pending.isEmpty() && !this->stop_requested.load()) {
                     void* obj = this->pending.pop_front();
                     this->processDecfp(obj, *tinfo);
 
-                    if(this->worker_state != WorkerState::Running) {
+                    if(this->worker_state.load() != WorkerState::Running) {
                         break;
                     }
                 }
             }
 
-            if(this->pending.isEmpty() && !this->stop_requested) {
+            if(this->pending.isEmpty() && !this->stop_requested.load()) {
                 this->worker_state = WorkerState::Paused;
             }
         }
