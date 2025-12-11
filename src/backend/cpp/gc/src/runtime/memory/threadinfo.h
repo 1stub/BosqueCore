@@ -145,7 +145,10 @@ struct DecsProcessor {
             if(this->worker_state.load() == WorkerState::Running) {
                 while(!this->pending.isEmpty() && !this->stop_requested.load()) {
                     void* obj = this->pending.pop_front();
+
+                    lk.unlock();
                     this->processDecfp(obj, *tinfo);
+                    lk.lock();
 
                     if(this->worker_state.load() != WorkerState::Running) {
                         break;
