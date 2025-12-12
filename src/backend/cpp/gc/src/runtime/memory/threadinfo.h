@@ -48,14 +48,15 @@ struct RegisterContents
 // An object for processing RC decrements on separate thread
 typedef ArrayList<void*> DecsList;
 struct DecsProcessor {
-    std::unique_ptr<std::condition_variable> cv;
-    std::unique_ptr<std::mutex> mtx;
-    std::unique_ptr<std::thread> worker;
+    std::condition_variable* cv;
+    std::mutex* mtx;
+    std::thread* worker;
 
     DecsList pending;
     void (*processDecfp)(void*, BSQMemoryTheadLocalInfo&);
 
     enum class WorkerState {
+        Starting,
         Running,
         Paused,
         Merging,
@@ -67,47 +68,23 @@ struct DecsProcessor {
 
     DecsProcessor() : 
         cv(nullptr), mtx(nullptr), worker(nullptr), pending(), processDecfp(nullptr), 
-        worker_state(WorkerState::Paused), stop_requested(false) { }
+        worker_state(WorkerState::Starting), stop_requested(false) { }
 
     void initialize(BSQMemoryTheadLocalInfo* tinfo)
-    { 
-        // Initialize synchronization primitives first
-        this->cv = std::make_unique<std::condition_variable>();
-        this->mtx = std::make_unique<std::mutex>();
-        
-        // Set the processing function if not already set
-        if (this->processDecfp == nullptr) {
-            // You need to set this to your actual function
-            // this->processDecfp = &yourProcessingFunction;
-        }
-        
-        // Start the worker thread
-        this->worker = std::make_unique<std::thread>(
-            &DecsProcessor::process, this, tinfo
-        );
-        
-        // Set initial state to Running to start processing
-        {
-            std::unique_lock<std::mutex> lk(*this->mtx);
-            this->worker_state = WorkerState::Running;
-        }
-        
-        GlobalThreadAllocInfo::s_thread_counter++;
-    }
-
-    void addDecrement(void* obj)
     {
-        std::unique_lock<std::mutex> lk(*this->mtx);
-        
-        // If worker is paused, wake it up
-        if (this->worker_state == WorkerState::Paused) {
-            this->worker_state = WorkerState::Running;
-        }
-        
-        this->pending.push_back(obj);
-        
-        lk.unlock();
-        this->cv->notify_one();
+        assert(this->cv == nullptr && this->mtx == nullptr && this->worker == nullptr);
+
+        // meh
+        this->pending.initialize();
+        this->cv = new std::condition_variable();
+        this->mtx = new std::mutex();
+
+        // Ensure worker has made it through startup and is paused in process
+        std::unique_lock lk(*this->mtx);
+        this->worker = new std::thread([this, tinfo] { this->process(tinfo); });
+        this->cv->wait(lk, [this]{ return this->worker_state == WorkerState::Paused; });
+
+        GlobalThreadAllocInfo::s_thread_counter++;
     }
 
     void requestMergeAndPause(std::unique_lock<std::mutex>& lk)
@@ -133,35 +110,30 @@ struct DecsProcessor {
 
     void signalFinished()
     {
-        std::unique_lock<std::mutex> lk(*this->mtx);
+        std::unique_lock lk(*this->mtx);
         this->stop_requested = true;
-        
-        // Wake up the worker if it's sleeping
-        if (this->worker_state == WorkerState::Paused) {
-            this->worker_state = WorkerState::Running;
-        }
 
         lk.unlock();
         this->cv->notify_one();
-        
-        lk.lock();
-        // Wait for worker to acknowledge stop
-        this->cv->wait(lk, [this]{ 
-            return this->worker_state == WorkerState::Stopped || this->worker_state == WorkerState::Paused; 
-        });
 
-        lk.unlock();
+        // Worker thread ack 
+        this->cv->wait(lk, [this]{ return this->worker_state == WorkerState::Paused; });
+
         this->worker->join();
-        
         GlobalThreadAllocInfo::s_thread_counter--;
     }
 
     void process(BSQMemoryTheadLocalInfo* tinfo)
     {
-        std::unique_lock<std::mutex> lk(*this->mtx);
-        
+        std::unique_lock lk(*this->mtx);
+
+        // Need to let main thread know we have finished being initialized and are waiting
+        this->worker_state = WorkerState::Paused;
+        lk.unlock();
+        this->cv->notify_one();
+        lk.lock();
+
         while(!this->stop_requested) {
-            // Wait for work or stop signal
             if(this->worker_state == WorkerState::Paused) {
                 this->cv->wait(lk, [this] {
                     return this->worker_state != WorkerState::Paused || this->stop_requested;
@@ -169,35 +141,21 @@ struct DecsProcessor {
             }
 
             if(this->stop_requested) {
-                this->worker_state = WorkerState::Stopped;
-                lk.unlock();
-                this->cv->notify_one(); // Notify main thread
                 break;
             }
 
             if(this->worker_state == WorkerState::Merging) {
-                // Perform any pending work before pausing
-                while(!this->pending.isEmpty()) {
-                    void* obj = this->pending.pop_front();
-                    lk.unlock();
-                    this->processDecfp(obj, *tinfo);
-                    lk.lock();
-                }
-                
                 this->worker_state = WorkerState::Paused;
                 lk.unlock();
-                this->cv->notify_one(); // Notify main thread of merge completion
+                this->cv->notify_one(); // Notify main thread of merge
                 lk.lock();
                 continue;
             }
 
             if(this->worker_state == WorkerState::Running) {
-                // Process all pending items
                 while(!this->pending.isEmpty() && !this->stop_requested) {
                     void* obj = this->pending.pop_front();
-                    lk.unlock();
                     this->processDecfp(obj, *tinfo);
-                    lk.lock();
 
                     if(this->worker_state != WorkerState::Running) {
                         break;
@@ -205,17 +163,9 @@ struct DecsProcessor {
                 }
             }
 
-            // Go to paused state if no work
             if(this->pending.isEmpty() && !this->stop_requested) {
                 this->worker_state = WorkerState::Paused;
             }
-        }
-    }
-
-    ~DecsProcessor()
-    {
-        if (this->worker != nullptr && this->worker->joinable()) {
-            this->signalFinished();
         }
     }
 };
