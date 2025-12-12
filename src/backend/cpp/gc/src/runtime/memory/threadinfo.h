@@ -55,7 +55,7 @@ typedef ArrayList<void*> DecsList;
 struct DecsProcessor {
     std::unique_ptr<std::condition_variable> cv;
     std::unique_ptr<std::mutex> mtx;
-    std::unique_ptr<std::thread> worker;
+    std::unique_ptr<std::jthread> worker;
 
     DecsList pending;
     DecdPagesList decd_pages;
@@ -90,7 +90,7 @@ struct DecsProcessor {
         // possibly not necessary?
         // Ensure worker has made it through startup and is paused in process
         std::unique_lock lk(*this->mtx);
-        this->worker = std::make_unique<std::thread>([this] { this->process(); });
+        this->worker = std::make_unique<std::jthread>([this] { this->process(); });
         this->cv->wait(lk, [this]{ return this->worker_state == WorkerState::Paused; });
 
         GlobalThreadAllocInfo::s_thread_counter++;
