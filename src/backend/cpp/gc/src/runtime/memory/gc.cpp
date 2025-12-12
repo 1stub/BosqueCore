@@ -12,7 +12,7 @@
 #define GET_SLOT_START_FROM_OFFSET(O) (O - sizeof(PageInfo) - sizeof(MetaData)) 
 #endif
 
-static void walkPointerMaskForDecrements(BSQMemoryTheadLocalInfo& tinfo, __CoreGC::TypeInfoBase* typeinfo, void** slots, DecsList& list) noexcept;
+static void walkPointerMaskForDecrements(__CoreGC::TypeInfoBase* typeinfo, void** slots, DecsList& list) noexcept;
 static void updatePointers(void** slots, __CoreGC::TypeInfoBase* typeinfo, BSQMemoryTheadLocalInfo& tinfo) noexcept;
 static void walkPointerMaskForMarking(BSQMemoryTheadLocalInfo& tinfo, __CoreGC::TypeInfoBase* typeinfo, void** slots) noexcept; 
 
@@ -27,7 +27,7 @@ static void reprocessPageInfo(PageInfo* page, BSQMemoryTheadLocalInfo& tinfo) no
     }
 }
 
-static inline void pushPendingDecs(BSQMemoryTheadLocalInfo& tinfo, void* obj, DecsList& list)
+static inline void pushPendingDecs(void* obj, DecsList& list)
 {
     // Dead root points to root case, keep the root pointed to alive
     if(GC_IS_ROOT(obj)) [[unlikely]] {
@@ -51,7 +51,7 @@ static void computeDeadRootsForDecrement(BSQMemoryTheadLocalInfo& tinfo) noexcep
         if(roots_idx >= tinfo.roots_count) {
             // Was dropped from roots
             if(GC_REF_COUNT(cur_oldroot) == 0) {
-                pushPendingDecs(tinfo, cur_oldroot, tinfo.decs_batch);
+                pushPendingDecs(cur_oldroot, tinfo.decs_batch);
             }
             oldroots_idx++;
             continue;
@@ -65,7 +65,7 @@ static void computeDeadRootsForDecrement(BSQMemoryTheadLocalInfo& tinfo) noexcep
         else if(cur_oldroot < cur_root) {
             // Was dropped from roots
             if(GC_REF_COUNT(cur_oldroot) == 0) {
-                pushPendingDecs(tinfo, cur_oldroot, tinfo.decs_batch);
+                pushPendingDecs(cur_oldroot, tinfo.decs_batch);
             }
             oldroots_idx++;
         } 
@@ -79,26 +79,26 @@ static void computeDeadRootsForDecrement(BSQMemoryTheadLocalInfo& tinfo) noexcep
     tinfo.old_roots_count = 0;
 }
 
-static inline void handleTaggedObjectDecrement(BSQMemoryTheadLocalInfo& tinfo, void** slots, DecsList& list) noexcept 
+static inline void handleTaggedObjectDecrement(void** slots, DecsList& list) noexcept 
 {
     __CoreGC::TypeInfoBase* tagged_typeinfo = (__CoreGC::TypeInfoBase*)*slots;
     switch(tagged_typeinfo->tag) {
         case __CoreGC::Tag::Ref: {
-            pushPendingDecs(tinfo, *(slots + 1), list); 
+            pushPendingDecs(*(slots + 1), list); 
             break;
         }
         case __CoreGC::Tag::Tagged: {
-            walkPointerMaskForDecrements(tinfo, tagged_typeinfo, slots + 1, list); 
+            walkPointerMaskForDecrements(tagged_typeinfo, slots + 1, list); 
             break;
         }
         case __CoreGC::Tag::Value: {
-            walkPointerMaskForDecrements(tinfo, tagged_typeinfo, slots + 1, list);
+            walkPointerMaskForDecrements(tagged_typeinfo, slots + 1, list);
             break;
         }
     }
 }
 
-static void walkPointerMaskForDecrements(BSQMemoryTheadLocalInfo& tinfo, __CoreGC::TypeInfoBase* typeinfo, void** slots, DecsList& list) noexcept
+static void walkPointerMaskForDecrements(__CoreGC::TypeInfoBase* typeinfo, void** slots, DecsList& list) noexcept
 {
     const char* ptr_mask = typeinfo->ptr_mask;
     if(ptr_mask == PTR_MASK_LEAF) {
@@ -108,11 +108,11 @@ static void walkPointerMaskForDecrements(BSQMemoryTheadLocalInfo& tinfo, __CoreG
     while(*ptr_mask != '\0') {
         switch(*ptr_mask) {
             case PTR_MASK_PTR: { 
-                pushPendingDecs(tinfo, *slots, list); 
+                pushPendingDecs(*slots, list); 
                 break;
             }
             case PTR_MASK_TAGGED: { 
-                handleTaggedObjectDecrement(tinfo, slots, list); 
+                handleTaggedObjectDecrement(slots, list); 
                 break; 
             }
             case PTR_MASK_NOP: { 
@@ -125,12 +125,12 @@ static void walkPointerMaskForDecrements(BSQMemoryTheadLocalInfo& tinfo, __CoreG
     }
 }
 
-static inline void updateDecrementedPages(BSQMemoryTheadLocalInfo& tinfo, PageInfo* p) noexcept 
+static inline void updateDecrementedPages(PageInfo* p, DecdPagesList& pl) noexcept 
 {
     if(p->seen == false) {
         p->seen = true;
-        tinfo.decd_pages[tinfo.decd_pages_idx++] = p;
-        GC_INVARIANT_CHECK(tinfo.decd_pages_idx < MAX_DECD_PAGES);
+        pl.pages[pl.idx++] = p;
+        GC_INVARIANT_CHECK(pl.idx < MAX_DECD_PAGES);
     }
 }
 
@@ -141,44 +141,43 @@ static inline void decrementObject(void* obj) noexcept
     }
 }
 
-static inline void updateDecrementedObject(BSQMemoryTheadLocalInfo& tinfo, void* obj, ArrayList<void*>& list)
+static inline void updateDecrementedObject(void* obj, ArrayList<void*>& list)
 {
-    __CoreGC::TypeInfoBase* typeinfo = GC_TYPE(obj);
-    
+    __CoreGC::TypeInfoBase* typeinfo = GC_TYPE(obj); 
     if(typeinfo->ptr_mask != PTR_MASK_LEAF && GC_REF_COUNT(obj) == 0) {
-        walkPointerMaskForDecrements(tinfo, typeinfo, static_cast<void**>(obj), list);
+        walkPointerMaskForDecrements(typeinfo, static_cast<void**>(obj), list);
 
         MetaData* m = GC_GET_META_DATA_ADDR(obj);
         GC_RESET_ALLOC(m);
     }
 }
 
-static inline void tryReprocessDecrementedPages(BSQMemoryTheadLocalInfo& tinfo)
+static inline void tryReprocessDecrementedPages(BSQMemoryTheadLocalInfo& tinfo, DecdPagesList& pl)
 {
-    for(uint32_t i = 0; i < tinfo.decd_pages_idx; i++) {        
-        reprocessPageInfo(tinfo.decd_pages[i], tinfo);
+    for(uint32_t i = 0; i < pl.idx; i++) {        
+        reprocessPageInfo(pl.pages[i], tinfo);
     }
-    tinfo.decd_pages_idx = 0;
+    pl.idx = 0;
 }
 
-void processDec(void* obj, BSQMemoryTheadLocalInfo& tinfo) noexcept
+void processDec(void* obj, DecsProcessor* dp) noexcept
 {
     if(!GC_IS_ALLOCATED(obj)) {
         return ;
     }
 
     decrementObject(obj);
-    updateDecrementedObject(tinfo, obj, tinfo.decs.pending);
+    updateDecrementedObject(obj, dp->pending);
 
     PageInfo* p = PageInfo::extractPageFromPointer(obj);
-    updateDecrementedPages(tinfo, p);
+    updateDecrementedPages(p, dp->decd_pages);
 }
 
-static void mergeDecList(BSQMemoryTheadLocalInfo& tinfo)
+static void mergeDecList(BSQMemoryTheadLocalInfo& tinfo, DecsProcessor& dp)
 {
     while(!tinfo.decs_batch.isEmpty()) {
         void* obj = tinfo.decs_batch.pop_front();
-        tinfo.decs.pending.push_back(obj);
+        dp.pending.push_back(obj);
     }
     tinfo.decs_batch.clear();
     tinfo.decs_batch.initialize(); // Needed?
@@ -186,14 +185,14 @@ static void mergeDecList(BSQMemoryTheadLocalInfo& tinfo)
 
 // If we did not finish decs in main thread pause decs thread, merge remaining work,
 // then signal processing can continue
-static void tryMergeDecList(BSQMemoryTheadLocalInfo& tinfo)
+static void tryMergeDecList( BSQMemoryTheadLocalInfo& tinfo, DecsProcessor& dp)
 {
-    if(tinfo.decs.processDecfp == nullptr) {
-        tinfo.decs.processDecfp = processDec;
+    if(dp.processDecfp == nullptr) {
+        dp.processDecfp = processDec;
     }
 
     if(!tinfo.decs_batch.isEmpty()) {
-        mergeDecList(tinfo);
+        mergeDecList(tinfo, dp);
     }
 }
 
@@ -210,10 +209,10 @@ static void processDecrements(BSQMemoryTheadLocalInfo& tinfo) noexcept
         }
 
         decrementObject(obj);
-        updateDecrementedObject(tinfo, obj, tinfo.decs_batch);
+        updateDecrementedObject(obj, tinfo.decs_batch);
 
         PageInfo* p = PageInfo::extractPageFromPointer(obj);
-        updateDecrementedPages(tinfo, p);
+        updateDecrementedPages(p, tinfo.decd_pages);
 
         deccount++;
     }
@@ -548,8 +547,8 @@ void collect() noexcept
     COLLECTION_STATS_START();
 
     // Pause decs thread while we run a collection
-    std::unique_lock lk(*gtl_info.decs.mtx);
-    gtl_info.decs.requestMergeAndPause(lk);
+    std::unique_lock lk(*g_decs_prcsr.mtx);
+    g_decs_prcsr.requestMergeAndPause(lk);
     
     gtl_info.pending_young.initialize();
 
@@ -572,8 +571,12 @@ void collect() noexcept
     
     computeDeadRootsForDecrement(gtl_info);
     processDecrements(gtl_info);
-    tryReprocessDecrementedPages(gtl_info);
-    tryMergeDecList(gtl_info);
+
+    // May not need to have both at this position
+    tryReprocessDecrementedPages(gtl_info, g_decs_prcsr.decd_pages);
+    tryReprocessDecrementedPages(gtl_info, gtl_info.decd_pages);
+
+    tryMergeDecList(gtl_info, g_decs_prcsr);
 
     RC_STATS_END(gtl_info, rc_times);
     UPDATE_RC_TIMES(gtl_info); 
@@ -589,5 +592,5 @@ void collect() noexcept
     UPDATE_MEMSTATS_TOTALS(gtl_info);
 
     // Unpause now that everything has been processed
-    gtl_info.decs.resumeAfterMerge(lk);
+    g_decs_prcsr.resumeAfterMerge(lk);
 }

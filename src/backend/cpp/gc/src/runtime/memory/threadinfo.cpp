@@ -7,6 +7,7 @@ thread_local void* forward_table_array[BSQ_MAX_FWD_TABLE_ENTRIES];
 thread_local GCAllocator* g_gcallocs_array[BSQ_MAX_ALLOC_SLOTS];
 
 thread_local BSQMemoryTheadLocalInfo gtl_info;
+thread_local DecsProcessor g_decs_prcsr;
 
 #define PTR_IN_RANGE(V) ((MIN_ALLOCATED_ADDRESS <= V) && (V <= MAX_ALLOCATED_ADDRESS))
 #define PTR_NOT_IN_STACK(BASE, CURR, V) ((((void*)V) < ((void*)CURR)) || (((void*)BASE) < ((void*)V)))

@@ -45,15 +45,21 @@ struct RegisterContents
     void* r15 = nullptr;
 };
 
+struct DecdPagesList {
+    uint32_t idx = 0;
+    PageInfo* pages[MAX_DECD_PAGES];
+};
+
 // An object for processing RC decrements on separate thread
 typedef ArrayList<void*> DecsList;
 struct DecsProcessor {
-    std::condition_variable* cv;
-    std::mutex* mtx;
-    std::thread* worker;
+    std::unique_ptr<std::condition_variable> cv;
+    std::unique_ptr<std::mutex> mtx;
+    std::unique_ptr<std::thread> worker;
 
     DecsList pending;
-    void (*processDecfp)(void*, BSQMemoryTheadLocalInfo&);
+    DecdPagesList decd_pages;
+    void (*processDecfp)(void*, DecsProcessor*);
 
     enum class WorkerState {
         Starting,
@@ -67,21 +73,24 @@ struct DecsProcessor {
     bool stop_requested;
 
     DecsProcessor() : 
-        cv(nullptr), mtx(nullptr), worker(nullptr), pending(), processDecfp(nullptr), 
-        worker_state(WorkerState::Starting), stop_requested(false) { }
+        cv(nullptr), mtx(nullptr), worker(nullptr), pending(), decd_pages(),
+        processDecfp(nullptr), worker_state(WorkerState::Starting), stop_requested(false)
+    { 
+    }
 
-    void initialize(BSQMemoryTheadLocalInfo* tinfo)
+    void initialize()
     {
         assert(this->cv == nullptr && this->mtx == nullptr && this->worker == nullptr);
 
         // meh
         this->pending.initialize();
-        this->cv = new std::condition_variable();
-        this->mtx = new std::mutex();
+        this->cv = std::make_unique<std::condition_variable>();
+        this->mtx = std::make_unique<std::mutex>();
 
+        // possibly not necessary?
         // Ensure worker has made it through startup and is paused in process
         std::unique_lock lk(*this->mtx);
-        this->worker = new std::thread([this, tinfo] { this->process(tinfo); });
+        this->worker = std::make_unique<std::thread>([this] { this->process(); });
         this->cv->wait(lk, [this]{ return this->worker_state == WorkerState::Paused; });
 
         GlobalThreadAllocInfo::s_thread_counter++;
@@ -123,7 +132,7 @@ struct DecsProcessor {
         GlobalThreadAllocInfo::s_thread_counter--;
     }
 
-    void process(BSQMemoryTheadLocalInfo* tinfo)
+    void process()
     {
         std::unique_lock lk(*this->mtx);
 
@@ -155,7 +164,7 @@ struct DecsProcessor {
             if(this->worker_state == WorkerState::Running) {
                 while(!this->pending.isEmpty() && !this->stop_requested) {
                     void* obj = this->pending.pop_front();
-                    this->processDecfp(obj, *tinfo);
+                    this->processDecfp(obj, this);
 
                     if(this->worker_state != WorkerState::Running) {
                         break;
@@ -194,11 +203,8 @@ struct BSQMemoryTheadLocalInfo
     int32_t forward_table_index;
     void** forward_table;
 
-    DecsProcessor decs; 
     DecsList decs_batch; // Decrements able to be done without needing decs thread
-
-    uint32_t decd_pages_idx = 0;
-    PageInfo* decd_pages[MAX_DECD_PAGES];
+    DecdPagesList decd_pages;
     
     float nursery_usage = 0.0f;
 
@@ -224,7 +230,7 @@ struct BSQMemoryTheadLocalInfo
         tl_id(0), g_gcallocs(nullptr), native_stack_base(nullptr), native_stack_contents(), 
         native_register_contents(), roots_count(0), roots(nullptr), old_roots_count(0), 
         old_roots(nullptr), forward_table_index(FWD_TABLE_START), forward_table(nullptr), 
-        decs(), decs_batch(), decd_pages_idx(0), decd_pages(), pending_roots(), 
+        decs_batch(), decd_pages(), pending_roots(), 
         visit_stack(), pending_young(), max_decrement_count(BSQ_INITIAL_MAX_DECREMENT_COUNT) { }
     BSQMemoryTheadLocalInfo& operator=(BSQMemoryTheadLocalInfo&) = delete;
     BSQMemoryTheadLocalInfo(BSQMemoryTheadLocalInfo&) = delete;
@@ -266,3 +272,4 @@ struct BSQMemoryTheadLocalInfo
 };
 
 extern thread_local BSQMemoryTheadLocalInfo gtl_info;
+extern thread_local DecsProcessor g_decs_prcsr;
