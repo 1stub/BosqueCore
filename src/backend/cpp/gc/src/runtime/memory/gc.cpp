@@ -176,10 +176,6 @@ void processDec(void* obj, BSQMemoryTheadLocalInfo& tinfo) noexcept
 
 static void mergeDecList(BSQMemoryTheadLocalInfo& tinfo)
 {
-    if(!tinfo.decs.pending.isInitialized()) {
-        tinfo.decs.pending.initialize();
-    }
-
     while(!tinfo.decs_batch.isEmpty()) {
         void* obj = tinfo.decs_batch.pop_front();
         tinfo.decs.pending.push_back(obj);
@@ -552,7 +548,7 @@ void collect() noexcept
     COLLECTION_STATS_START();
 
     // Pause decs thread while we run a collection
-    std::unique_lock lk(gtl_info.decs.mtx);
+    std::unique_lock lk(*gtl_info.decs.mtx);
     gtl_info.decs.requestMergeAndPause(lk);
     
     gtl_info.pending_young.initialize();
