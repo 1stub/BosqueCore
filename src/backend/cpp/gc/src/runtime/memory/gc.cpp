@@ -588,10 +588,10 @@ void collect() noexcept
     processAllocatorsPages();
     updateRoots();
 
-    // Unpause now that everything has been processed
-    gtl_info.decs.resumeAfterMerge(lk);
-
     COLLECTION_STATS_END(gtl_info, collection_times);
     UPDATE_COLLECTION_TIMES(gtl_info);
     UPDATE_MEMSTATS_TOTALS(gtl_info);
+
+    // Unpause now that everything has been processed
+    gtl_info.decs.resumeAfterMerge(lk);
 }
