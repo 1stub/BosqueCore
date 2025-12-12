@@ -66,9 +66,10 @@ struct DecsProcessor {
     bool stop_requested;
 
     DecsProcessor(BSQMemoryTheadLocalInfo* tinfo) : 
-        cv(), mtx(), worker(&DecsProcessor::process, this, tinfo), pending(), 
+        cv(), mtx(), worker(), pending(), 
         processDecfp(nullptr), worker_state(WorkerState::Paused), stop_requested(false) 
     { 
+        this->worker = std::thread(&DecsProcessor::process, this, tinfo);
         GlobalThreadAllocInfo::s_thread_counter++;
     }
 
