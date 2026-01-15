@@ -57,8 +57,7 @@ struct DecsProcessor {
     std::condition_variable cv;
     std::thread thd;    
 
-    void (*processDecfp)(void*, BSQMemoryTheadLocalInfo&);
-    DecsList pending;
+    void (*processDecfp)(BSQMemoryTheadLocalInfo&);
 
     enum class State {
         Running,
@@ -69,7 +68,7 @@ struct DecsProcessor {
     };
     State st;
 
-    DecsProcessor(): mtx(), cv(), thd(), processDecfp(nullptr), pending(), st(State::Paused) {}
+    DecsProcessor(): mtx(), cv(), thd(), processDecfp(nullptr), st(State::Paused) {}
 
     void initialize(BSQMemoryTheadLocalInfo* tinfo)
     {
@@ -138,13 +137,10 @@ struct DecsProcessor {
                 return ;
             }
 
-            while(!this->pending.isEmpty()) {
+            while(this->processDecfp(*tinfo)) {
                 if(this->st != State::Running) {
 					break;
 				}
-
-                void* obj = this->pending.pop_front();
-                this->processDecfp(obj, *tinfo);
             }
             
             this->changeStateFromWorker(State::Paused);
@@ -176,8 +172,8 @@ struct BSQMemoryTheadLocalInfo
     int32_t forward_table_index;
     void** forward_table;
 
-    DecsProcessor decs; 
-    DecsList decs_batch; // Decrements able to be done without needing decs thread
+    DecsProcessor decs_prcsr; 
+    DecsList pending_decs; // Objects pending RC decrements 
 
     uint32_t decd_pages_idx = 0;
     PageInfo* decd_pages[MAX_DECD_PAGES];
@@ -207,7 +203,7 @@ struct BSQMemoryTheadLocalInfo
         tl_id(0), g_gcallocs(nullptr), native_stack_base(nullptr), native_stack_contents(), 
         native_register_contents(), roots_count(0), roots(nullptr), old_roots_count(0), 
         old_roots(nullptr), forward_table_index(FWD_TABLE_START), forward_table(nullptr), 
-        decs(), decs_batch(), decd_pages_idx(0), decd_pages(), pending_roots(), 
+        decs_prcsr(), pending_decs(), decd_pages_idx(0), decd_pages(), pending_roots(), 
         visit_stack(), pending_young(), bytes_freed(0), max_decrement_count(0) { }
     BSQMemoryTheadLocalInfo& operator=(BSQMemoryTheadLocalInfo&) = delete;
     BSQMemoryTheadLocalInfo(BSQMemoryTheadLocalInfo&) = delete;

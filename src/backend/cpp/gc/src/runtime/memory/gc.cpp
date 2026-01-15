@@ -130,8 +130,9 @@ static void walkPointerMaskForDecrements(BSQMemoryTheadLocalInfo& tinfo, __CoreG
     }
 }
 
-static inline void updateDecrementedPages(BSQMemoryTheadLocalInfo& tinfo, PageInfo* p) noexcept 
+static inline void updateDecrementedPages(BSQMemoryTheadLocalInfo& tinfo, void* p) noexcept 
 {
+	PageInfo* p = PageInfo::extractPageFromPointer(obj);
     if(p->seen == false) {
         p->seen = true;
         tinfo.decd_pages[tinfo.decd_pages_idx++] = p;
@@ -142,9 +143,8 @@ static inline void updateDecrementedPages(BSQMemoryTheadLocalInfo& tinfo, PageIn
 static inline void decrementObject(void* obj) noexcept 
 {
 	MetaData* m = GC_GET_META_DATA_ADDR(obj);
-    if(GC_REF_COUNT(m) > 0) {
-        DEC_REF_COUNT(m);
-    }
+    GC_INVARIANT_CHECK(GC_REF_COUNT(m) > 0);
+    DEC_REF_COUNT(m);
 }
 
 static inline void updateDecrementedObject(BSQMemoryTheadLocalInfo& tinfo, void* obj, ArrayList<void*>& list)
@@ -165,41 +165,28 @@ static inline void tryReprocessDecrementedPages(BSQMemoryTheadLocalInfo& tinfo)
     tinfo.decd_pages_idx = 0;
 }
 
-void processDec(void* obj, BSQMemoryTheadLocalInfo& tinfo) noexcept
+// TODO we should consider whether its worth it to use the explicit
+// lockign and unlockign thats forced with posix mutexes
+bool processDec(BSQMemoryTheadLocalInfo& tinfo) noexcept
 {
+	GC_MEM_LOCK_ACQUIRE();
+
+	if(!tinfo.pending_decs.isEmpty()) {
+		GC_MEM_LOCK_RELEASE();
+		return false;	
+	}
+
+	void* obj = tinfo.pending_decs.pop_front();
 	MetaData* m = GC_GET_META_DATA_ADDR(obj);	
-    if(!GC_IS_ALLOCATED(m)) {
-        return ;
-    }
+    GC_INVARIANT_CHECK(!GC_IS_ALLOCATED(m)); 
 
     decrementObject(obj);
     updateDecrementedObject(tinfo, obj, tinfo.decs.pending);
-
-    PageInfo* p = PageInfo::extractPageFromPointer(obj);
     updateDecrementedPages(tinfo, p);
-}
 
-static void mergeDecList(BSQMemoryTheadLocalInfo& tinfo)
-{
-    while(!tinfo.decs_batch.isEmpty()) {
-        void* obj = tinfo.decs_batch.pop_front();
-        tinfo.decs.pending.push_back(obj);
-    }
-    tinfo.decs_batch.clear();
-    tinfo.decs_batch.initialize(); // Needed?
-}
+	GC_MEM_LOCK_RELEASE()
 
-// If we did not finish decs in main thread pause decs thread, merge remaining work,
-// then signal processing can continue
-static void tryMergeDecList(BSQMemoryTheadLocalInfo& tinfo)
-{
-    if(tinfo.decs.processDecfp == nullptr) {
-        tinfo.decs.processDecfp = processDec;
-    }
-
-    if(!tinfo.decs_batch.isEmpty()) {
-        mergeDecList(tinfo);
-    }
+	return true;
 }
 
 static void processDecrements(BSQMemoryTheadLocalInfo& tinfo) noexcept
@@ -207,19 +194,7 @@ static void processDecrements(BSQMemoryTheadLocalInfo& tinfo) noexcept
     GC_REFCT_LOCK_ACQUIRE();
     
     size_t deccount = 0;
-    while(!tinfo.decs_batch.isEmpty() && (deccount < tinfo.max_decrement_count)) {
-        void* obj = tinfo.decs_batch.pop_front();
-	    MetaData* m = GC_GET_META_DATA_ADDR(obj);	
-        if(!GC_IS_ALLOCATED(m)) {
-            continue;
-        }
-
-        decrementObject(obj);
-        updateDecrementedObject(tinfo, obj, tinfo.decs_batch);
-
-        PageInfo* p = PageInfo::extractPageFromPointer(obj);
-        updateDecrementedPages(tinfo, p);
-
+    while(processDec(tinfo) && (deccount < tinfo.max_decrement_count)) {
         deccount++;
     }
 
@@ -562,8 +537,6 @@ static void updateRoots(BSQMemoryTheadLocalInfo& tinfo)
 void collect() noexcept
 {
     COLLECTION_STATS_START();
-
-    gtl_info.decs.pause();
     
     gtl_info.pending_young.initialize();
 
@@ -582,8 +555,6 @@ void collect() noexcept
     gtl_info.forward_table_index = FWD_TABLE_START;
 
     RC_STATS_START();
-
-    gtl_info.decs_batch.initialize();
 
 	computeMaxDecrementCount(gtl_info);
 
@@ -605,6 +576,4 @@ void collect() noexcept
     COLLECTION_STATS_END(collection_times);
 
     UPDATE_MEMSTATS_TOTALS(gtl_info);
-
-    gtl_info.decs.resume();
 }

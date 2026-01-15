@@ -149,7 +149,8 @@ void update_rc_stats(MemStats& ms, double time) noexcept;
 
 #define UPDATE_MEMSTATS_TOTALS(INFO) \
     do { \
-        auto mstats_compute_start = std::chrono::high_resolution_clock::now(); \
+        INFO.decs_prcsr.pause(); /*Ensure we get a consistent snapshot of program state*/\
+	    auto mstats_compute_start = std::chrono::high_resolution_clock::now(); \
         UPDATE_NURSERY_TIMES(); \
         UPDATE_RC_TIMES(); \
         UPDATE_COLLECTION_TIMES(); \
@@ -162,6 +163,7 @@ void update_rc_stats(MemStats& ms, double time) noexcept;
         auto mstats_compute_end = std::chrono::high_resolution_clock::now(); \
         Time mstats_compute_elapsed = TIME(mstats_compute_end - mstats_compute_start); \
         g_memstats.overhead_time += mstats_compute_elapsed; \
+		INFO.decs_prcsr.start(); \
     } while(0)
 #else
 struct MemStats {};
