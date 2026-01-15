@@ -12,7 +12,7 @@
 #define GET_SLOT_START_FROM_OFFSET(O) (O - sizeof(PageInfo) - sizeof(MetaData)) 
 #endif
 
-static void walkPointerMaskForDecrements(BSQMemoryTheadLocalInfo& tinfo, __CoreGC::TypeInfoBase* typeinfo, void** slots, DecsList& list) noexcept;
+static void walkPointerMaskForDecrements(BSQMemoryTheadLocalInfo& tinfo, __CoreGC::TypeInfoBase* typeinfo, void** slots) noexcept;
 static void updatePointers(void** slots, __CoreGC::TypeInfoBase* typeinfo, BSQMemoryTheadLocalInfo& tinfo) noexcept;
 static void walkPointerMaskForMarking(BSQMemoryTheadLocalInfo& tinfo, __CoreGC::TypeInfoBase* typeinfo, void** slots) noexcept; 
 
@@ -31,7 +31,7 @@ static void reprocessPageInfo(PageInfo* page, BSQMemoryTheadLocalInfo& tinfo) no
     }
 }
 
-static inline void pushPendingDecs(BSQMemoryTheadLocalInfo& tinfo, void* obj, DecsList& list)
+static inline void pushPendingDecs(BSQMemoryTheadLocalInfo& tinfo, void* obj)
 {
     // Dead root points to root case, keep the root pointed to alive
 	MetaData* m = GC_GET_META_DATA_ADDR(obj);
@@ -39,7 +39,7 @@ static inline void pushPendingDecs(BSQMemoryTheadLocalInfo& tinfo, void* obj, De
         return ;
     }
 
-    list.push_back(obj);
+    tinfo.pending_decs.push_back(obj);
 }
 
 static void computeDeadRootsForDecrement(BSQMemoryTheadLocalInfo& tinfo) noexcept
@@ -56,7 +56,7 @@ static void computeDeadRootsForDecrement(BSQMemoryTheadLocalInfo& tinfo) noexcep
         if(roots_idx >= tinfo.roots_count) {
             // Was dropped from roots
             if(GC_REF_COUNT(m) == 0) {
-                pushPendingDecs(tinfo, cur_oldroot, tinfo.decs_batch);
+                pushPendingDecs(tinfo, cur_oldroot);
             }
             oldroots_idx++;
             continue;
@@ -70,7 +70,7 @@ static void computeDeadRootsForDecrement(BSQMemoryTheadLocalInfo& tinfo) noexcep
         else if(cur_oldroot < cur_root) {
             // Was dropped from roots
             if(GC_REF_COUNT(m) == 0) {
-                pushPendingDecs(tinfo, cur_oldroot, tinfo.decs_batch);
+                pushPendingDecs(tinfo, cur_oldroot);
             }
             oldroots_idx++;
         } 
@@ -84,26 +84,26 @@ static void computeDeadRootsForDecrement(BSQMemoryTheadLocalInfo& tinfo) noexcep
     tinfo.old_roots_count = 0;
 }
 
-static inline void handleTaggedObjectDecrement(BSQMemoryTheadLocalInfo& tinfo, void** slots, DecsList& list) noexcept 
+static inline void handleTaggedObjectDecrement(BSQMemoryTheadLocalInfo& tinfo, void** slots) noexcept 
 {
     __CoreGC::TypeInfoBase* tagged_typeinfo = (__CoreGC::TypeInfoBase*)*slots;
     switch(tagged_typeinfo->tag) {
         case __CoreGC::Tag::Ref: {
-            pushPendingDecs(tinfo, *(slots + 1), list); 
+            pushPendingDecs(tinfo, *(slots + 1)); 
             break;
         }
         case __CoreGC::Tag::Tagged: {
-            walkPointerMaskForDecrements(tinfo, tagged_typeinfo, slots + 1, list); 
+            walkPointerMaskForDecrements(tinfo, tagged_typeinfo, slots + 1); 
             break;
         }
         case __CoreGC::Tag::Value: {
-            walkPointerMaskForDecrements(tinfo, tagged_typeinfo, slots + 1, list);
+            walkPointerMaskForDecrements(tinfo, tagged_typeinfo, slots + 1);
             break;
         }
     }
 }
 
-static void walkPointerMaskForDecrements(BSQMemoryTheadLocalInfo& tinfo, __CoreGC::TypeInfoBase* typeinfo, void** slots, DecsList& list) noexcept
+static void walkPointerMaskForDecrements(BSQMemoryTheadLocalInfo& tinfo, __CoreGC::TypeInfoBase* typeinfo, void** slots) noexcept
 {
     const char* ptr_mask = typeinfo->ptr_mask;
     if(ptr_mask == PTR_MASK_LEAF) {
@@ -113,11 +113,11 @@ static void walkPointerMaskForDecrements(BSQMemoryTheadLocalInfo& tinfo, __CoreG
     while(*ptr_mask != '\0') {
         switch(*ptr_mask) {
             case PTR_MASK_PTR: { 
-                pushPendingDecs(tinfo, *slots, list); 
+                pushPendingDecs(tinfo, *slots); 
                 break;
             }
             case PTR_MASK_TAGGED: { 
-                handleTaggedObjectDecrement(tinfo, slots, list); 
+                handleTaggedObjectDecrement(tinfo, slots); 
                 break; 
             }
             case PTR_MASK_NOP: { 
@@ -130,7 +130,7 @@ static void walkPointerMaskForDecrements(BSQMemoryTheadLocalInfo& tinfo, __CoreG
     }
 }
 
-static inline void updateDecrementedPages(BSQMemoryTheadLocalInfo& tinfo, void* p) noexcept 
+static inline void updateDecrementedPages(BSQMemoryTheadLocalInfo& tinfo, void* obj) noexcept 
 {
 	PageInfo* p = PageInfo::extractPageFromPointer(obj);
     if(p->seen == false) {
@@ -147,12 +147,12 @@ static inline void decrementObject(void* obj) noexcept
     DEC_REF_COUNT(m);
 }
 
-static inline void updateDecrementedObject(BSQMemoryTheadLocalInfo& tinfo, void* obj, ArrayList<void*>& list)
+static inline void updateDecrementedObject(BSQMemoryTheadLocalInfo& tinfo, void* obj)
 {
     MetaData* m = GC_GET_META_DATA_ADDR(obj); 
     __CoreGC::TypeInfoBase* typeinfo = GC_TYPE(m);
     if(typeinfo->ptr_mask != PTR_MASK_LEAF && GC_REF_COUNT(m) == 0) {
-        walkPointerMaskForDecrements(tinfo, typeinfo, static_cast<void**>(obj), list);
+        walkPointerMaskForDecrements(tinfo, typeinfo, static_cast<void**>(obj));
         GC_RESET_ALLOC(m);
     }
 }
@@ -177,22 +177,31 @@ bool processDec(BSQMemoryTheadLocalInfo& tinfo) noexcept
 	}
 
 	void* obj = tinfo.pending_decs.pop_front();
-	MetaData* m = GC_GET_META_DATA_ADDR(obj);	
-    GC_INVARIANT_CHECK(!GC_IS_ALLOCATED(m)); 
+    GC_INVARIANT_CHECK(!GC_IS_ALLOCATED(GC_GET_META_DATA_ADDR(obj))); 
 
     decrementObject(obj);
-    updateDecrementedObject(tinfo, obj, tinfo.decs.pending);
-    updateDecrementedPages(tinfo, p);
+    updateDecrementedObject(tinfo, obj);
+    updateDecrementedPages(tinfo, obj);
 
-	GC_MEM_LOCK_RELEASE()
+	GC_MEM_LOCK_RELEASE();
 
 	return true;
+}
+
+// TODO take a look at max_decrement_count and see if we can tighten it 
+// (it currently is computed as if every object is BSQ_MEM_ALIGNMENT bytes)
+static inline void computeMaxDecrementCount(BSQMemoryTheadLocalInfo& tinfo) noexcept
+{
+	tinfo.max_decrement_count = BSQ_INITIAL_MAX_DECREMENT_COUNT - (tinfo.bytes_freed / BSQ_MEM_ALIGNMENT);
+	tinfo.bytes_freed = 0;
 }
 
 static void processDecrements(BSQMemoryTheadLocalInfo& tinfo) noexcept
 {
     GC_REFCT_LOCK_ACQUIRE();
-    
+   
+	computeMaxDecrementCount(tinfo);
+ 
     size_t deccount = 0;
     while(processDec(tinfo) && (deccount < tinfo.max_decrement_count)) {
         deccount++;
@@ -510,12 +519,6 @@ static void processAllocatorsPages(BSQMemoryTheadLocalInfo& tinfo)
     }
 }
 
-static inline void computeMaxDecrementCount(BSQMemoryTheadLocalInfo& tinfo) noexcept
-{
-	tinfo.max_decrement_count = BSQ_INITIAL_MAX_DECREMENT_COUNT - (tinfo.bytes_freed / BSQ_MEM_ALIGNMENT);
-	tinfo.bytes_freed = 0;
-}
-
 static void updateRoots(BSQMemoryTheadLocalInfo& tinfo)
 {
     xmem_zerofill(tinfo.old_roots, tinfo.old_roots_count);
@@ -536,6 +539,13 @@ static void updateRoots(BSQMemoryTheadLocalInfo& tinfo)
 
 void collect() noexcept
 {
+	// I would really like to have a better place to keep this bit of init code
+	// as that stuff does not belong in collect
+	if(gtl_info.decs_prcsr.processDecfp == nullptr) {
+		gtl_info.decs_prcsr.processDecfp = processDec;
+		gtl_info.pending_decs.initialize();
+	}
+
     COLLECTION_STATS_START();
     
     gtl_info.pending_young.initialize();
@@ -556,19 +566,13 @@ void collect() noexcept
 
     RC_STATS_START();
 
-	computeMaxDecrementCount(gtl_info);
-
 	// Find dead roots, walk object graph from dead roots updating necessary rcs
 	// rebuild pages who saw decs (TODO do this lazily), and merge remainder of decs
-	// (TODO use a single shared list)    
     computeDeadRootsForDecrement(gtl_info);
     processDecrements(gtl_info);
     tryReprocessDecrementedPages(gtl_info);
-    tryMergeDecList(gtl_info);
 
     RC_STATS_END(rc_times);
-
-    gtl_info.decs_batch.clear();
 
     // Cleanup for next collection
     updateRoots(gtl_info);

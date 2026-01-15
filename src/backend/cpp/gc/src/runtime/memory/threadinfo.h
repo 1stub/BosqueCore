@@ -57,7 +57,7 @@ struct DecsProcessor {
     std::condition_variable cv;
     std::thread thd;    
 
-    void (*processDecfp)(BSQMemoryTheadLocalInfo&);
+    bool (*processDecfp)(BSQMemoryTheadLocalInfo&);
 
     enum class State {
         Running,
@@ -72,7 +72,6 @@ struct DecsProcessor {
 
     void initialize(BSQMemoryTheadLocalInfo* tinfo)
     {
-        this->pending.initialize();
         this->thd = std::thread([this, tinfo] { this->process(tinfo); });
         GlobalThreadAllocInfo::s_thread_counter++;
     }

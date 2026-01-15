@@ -163,7 +163,7 @@ void update_rc_stats(MemStats& ms, double time) noexcept;
         auto mstats_compute_end = std::chrono::high_resolution_clock::now(); \
         Time mstats_compute_elapsed = TIME(mstats_compute_end - mstats_compute_start); \
         g_memstats.overhead_time += mstats_compute_elapsed; \
-		INFO.decs_prcsr.start(); \
+		INFO.decs_prcsr.resume(); \
     } while(0)
 #else
 struct MemStats {};
