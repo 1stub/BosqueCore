@@ -183,21 +183,20 @@ bool processDec(BSQMemoryTheadLocalInfo& tinfo) noexcept
 	return true;
 }
 
-// TODO take a look and see if we can tighten max decs 
+// TODO take a look at max_decrement_count and see if we can tighten it 
 // (it currently is computed as if every object is BSQ_MEM_ALIGNMENT bytes)
 static inline size_t computeMaxDecrementCount(BSQMemoryTheadLocalInfo& tinfo) noexcept
 {
 	size_t max_decs = BSQ_INITIAL_MAX_DECREMENT_COUNT - (tinfo.bytes_freed / BSQ_MEM_ALIGNMENT);
 	tinfo.bytes_freed = 0;
-
-	return max_decs;
 }
 
 static void processDecrements(BSQMemoryTheadLocalInfo& tinfo) noexcept
 {   
-	size_t max_decs = computeMaxDecrementCount(tinfo); 
+	computeMaxDecrementCount(tinfo);
+ 
     size_t deccount = 0;
-    while(processDec(tinfo) && (deccount < max_decs)) {
+    while(processDec(tinfo) && (deccount < tinfo.max_decrement_count)) {
         deccount++;
     }
 
