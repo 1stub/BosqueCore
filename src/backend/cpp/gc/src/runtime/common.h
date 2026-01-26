@@ -136,23 +136,24 @@ struct MetaData
     bool isalloc;
     bool isyoung;
     bool ismarked;
-    bool isroot;
-    //TODO -- also a parent thread root bit (that we don't clear but we treat as a root for the purposes of marking etc.)
-    int32_t forward_index;
+    //TODO -- also a parent thread root bit (that we don't clear but we treat as a root for the purposes of marking etc.) 
+	int32_t thd_count;
+	int32_t forward_index;
     int32_t ref_count;
 }; 
 #else
+// NOTE we may be interested in making metadata 32 bits with 21 bits for RC
 typedef struct MetaData 
 {
     //!!!! alloc info is valid even when this is in a free-list so we need to make sure it is a 0 bit in the pointer value (low 3) !!!!
     union {
         uint64_t raw;
         struct {
-            uint64_t isalloc : 1;
-            uint64_t isyoung : 1;
+            uint64_t isalloc  : 1;
+            uint64_t isyoung  : 1;
             uint64_t ismarked : 1;
-            uint64_t isroot : 1;
-            uint64_t rc_fwd : 60;
+            uint64_t thdcnt   : 7;
+            uint64_t rc_fwd   : 56;
         } bits;
     };
 } MetaData;
@@ -168,13 +169,13 @@ static_assert(sizeof(MetaData) == 8, "MetaData size is not 8 bytes");
 
 #ifdef VERBOSE_HEADER
 // Resets an objects metadata and updates with index into forward table
-#define RESET_METADATA_FOR_OBJECT(META, FP) ((*(META)) = { .isalloc=false, .isyoung=true, .ismarked=false, .isroot=false, .forward_index=FP, .ref_count=0 })
+#define RESET_METADATA_FOR_OBJECT(META, FP) ((*(META)) = { .isalloc=false, .isyoung=true, .ismarked=false, .thd_cnt=0, .forward_index=FP, .ref_count=0 })
 #define ZERO_METADATA(META) ((*(META)) = {})
 
 #define GC_IS_MARKED(META)    ((META)->ismarked)
 #define GC_IS_YOUNG(META)     ((META)->isyoung)
 #define GC_IS_ALLOCATED(META) ((META)->isalloc)
-#define GC_IS_ROOT(META)      ((META)->isroot)
+#define GC_IS_ROOT(META)      ((META)->thd_cout > 0)
 
 #define GC_FWD_INDEX(META) ((META)->forward_index)
 #define GC_REF_COUNT(META) ((META)->ref_count)
