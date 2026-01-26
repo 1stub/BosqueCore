@@ -72,6 +72,11 @@ struct DecsProcessor {
 
     DecsProcessor(): mtx(), cv(), thd(), processDecfp(nullptr), pending(), decd_pages(), st(State::Paused) {}
 
+	//
+	// TODO before we merge this code lets take a look at the notify hueristics
+	// we are using and try to simplify stuff
+	//
+
     void initialize(BSQMemoryTheadLocalInfo* tinfo)
     {
         this->pending.initialize();
@@ -84,13 +89,17 @@ struct DecsProcessor {
     {
         std::unique_lock lk(this->mtx);
         this->st = nst;
-        this->cv.notify_one();
-        this->cv.wait(lk, [this, ack]{ return this->st == ack; });
+        lk.unlock();
+		this->cv.notify_one();
+        lk.lock();
+		this->cv.wait(lk, [this, ack]{ return this->st == ack; });
     }
 
     void changeStateFromWorker(State nst)
     {
-        this->st = nst;
+        std::unique_lock lk(this->mtx);	
+		this->st = nst;
+		lk.unlock();
         this->cv.notify_one();
     }
 
@@ -110,7 +119,8 @@ struct DecsProcessor {
     {
 		std::unique_lock lk(this->mtx);
         this->st = State::Running;
-        this->cv.notify_one();
+        lk.unlock(); 
+		this->cv.notify_one();
     }
 
     void stop()
@@ -129,18 +139,16 @@ struct DecsProcessor {
 
     void process(BSQMemoryTheadLocalInfo* tinfo)
     {
-        std::unique_lock lk(this->mtx);
-        while(true) {
-            this->cv.wait(lk, [this]
-                { return this->st != State::Paused; }
-            );
+        while(this->st != State::Stopping) { 
+            this->changeStateFromWorker(State::Paused);
+			{	
+        		std::unique_lock lk(this->mtx);
+				this->cv.wait(lk, [this]
+					{ return this->st != State::Paused; }
+				);
+			}
 
-            if(this->st == State::Stopping) {
-                this->changeStateFromWorker(State::Stopped);
-                return ;
-            }
-
-            while(!this->pending.isEmpty()) {
+			while(!this->pending.isEmpty()) {
                 if(this->st != State::Running) {
 					break;
 				}
@@ -148,9 +156,9 @@ struct DecsProcessor {
                 void* obj = this->pending.pop_front();
                 this->processDecfp(obj, this->decd_pages, *tinfo);
             }
-            
-            this->changeStateFromWorker(State::Paused);
         }
+        
+		this->changeStateFromWorker(State::Stopped);
     }
 
 	void mergeDecdPages(ArrayList<PageInfo*>& dst)
