@@ -128,7 +128,6 @@ public:
 // - When we are in the nursery the rc_fwd field will store an index into our forward table
 // - When we are in the old space the rc_fwd field will store a reference count
 
-// TODO we will need a separate rc for threads
 #ifdef VERBOSE_HEADER
 struct MetaData 
 {

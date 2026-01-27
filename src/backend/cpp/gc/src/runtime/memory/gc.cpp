@@ -340,6 +340,10 @@ static void checkPotentialPtr(void* addr, BSQMemoryTheadLocalInfo& tinfo) noexce
             return ;
     }
 
+	// I think this should change, as we would want to increment not only
+	// if it is already visited but just when a new thread touches it.
+	// -- and this would mean we need to instead decrement thread count when
+	//    moving roots onto the old roots list
     MetaData* m = PageInfo::getObjectMetadataAligned(addr);
     if(GC_SHOULD_PROCESS_AS_ROOT(m)) { 
         GC_MARK_AS_ROOT(m);
