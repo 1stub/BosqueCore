@@ -152,8 +152,8 @@ typedef struct MetaData
             uint64_t isalloc  : 1;
             uint64_t isyoung  : 1;
             uint64_t ismarked : 1;
-            uint64_t thdcnt   : 7;
-            uint64_t rc_fwd   : 56;
+            uint64_t thd_count: 7;
+            uint64_t rc_fwd   : 54;
         } bits;
     };
 } MetaData;
@@ -169,13 +169,13 @@ static_assert(sizeof(MetaData) == 8, "MetaData size is not 8 bytes");
 
 #ifdef VERBOSE_HEADER
 // Resets an objects metadata and updates with index into forward table
-#define RESET_METADATA_FOR_OBJECT(META, FP) ((*(META)) = { .isalloc=false, .isyoung=true, .ismarked=false, .thd_cnt=0, .forward_index=FP, .ref_count=0 })
+#define RESET_METADATA_FOR_OBJECT(META, FP) ((*(META)) = { .isalloc=false, .isyoung=true, .ismarked=false, .thd_count=0, .forward_index=FP, .ref_count=0 })
 #define ZERO_METADATA(META) ((*(META)) = {})
 
 #define GC_IS_MARKED(META)    ((META)->ismarked)
 #define GC_IS_YOUNG(META)     ((META)->isyoung)
 #define GC_IS_ALLOCATED(META) ((META)->isalloc)
-#define GC_IS_ROOT(META)      ((META)->thd_cout > 0)
+#define GC_IS_ROOT(META)      ((META)->thd_count > 0)
 
 #define GC_FWD_INDEX(META) ((META)->forward_index)
 #define GC_REF_COUNT(META) ((META)->ref_count)
@@ -187,14 +187,14 @@ static_assert(sizeof(MetaData) == 8, "MetaData size is not 8 bytes");
 
 #define GC_SHOULD_VISIT(META) ((META)->isyoung && !(META)->ismarked)
 
-#define GC_SHOULD_PROCESS_AS_ROOT(META) ((META)->isalloc && !(META)->isroot)
+#define GC_SHOULD_PROCESS_AS_ROOT(META) ((META)->isalloc && (META)->thd_count == 0)
 #define GC_SHOULD_PROCESS_AS_YOUNG(META) ((META)->isyoung)
 
-#define GC_MARK_AS_ROOT(META) { (META)->isroot = true; }
+#define GC_MARK_AS_ROOT(META) { (META)->thd_count++; }
 #define GC_MARK_AS_MARKED(META) { (META)->ismarked = true; }
 
 #define GC_CLEAR_YOUNG_MARK(META) { (META)->isyoung = false; }
-#define GC_CLEAR_ROOT_MARK(META) { (META)->ismarked = false; (META)->isroot = false; }
+#define GC_CLEAR_ROOT_MARK(META) { (META)->ismarked = false; (META)->thd_count--; }
 
 #define GC_SHOULD_FREE_LIST_ADD(META) (!(META)->isalloc || ((META)->isyoung && (META)->forward_index == NON_FORWARDED))
 
@@ -203,11 +203,11 @@ do { \
     int8_t isalloc_byte  = *reinterpret_cast<int8_t*>(&(META)->isalloc); \
     int8_t isyoung_byte  = *reinterpret_cast<int8_t*>(&(META)->isyoung); \
     int8_t ismarked_byte = *reinterpret_cast<int8_t*>(&(META)->ismarked); \
-    int8_t isroot_byte   = *reinterpret_cast<int8_t*>(&(META)->isroot); \
-    GC_INVARIANT_CHECK(isalloc_byte == 0 || isalloc_byte == 1); \
+    int8_t thd_count_raw = *reinterpret_cast<int8_t*>(&(META)->thd_count); \
+	GC_INVARIANT_CHECK(isalloc_byte == 0 || isalloc_byte == 1); \
     GC_INVARIANT_CHECK(isyoung_byte == 0 || isyoung_byte == 1); \
     GC_INVARIANT_CHECK(ismarked_byte == 0 || ismarked_byte == 1); \
-    GC_INVARIANT_CHECK(isroot_byte == 0 || isroot_byte == 1); \
+    GC_INVARIANT_CHECK(thd_count_raw >= 0); \
 } while(0)
 
 #else
@@ -223,7 +223,7 @@ do { \
 #define GC_IS_MARKED(META)    ((META)->bits.ismarked)
 #define GC_IS_YOUNG(META)     ((META)->bits.isyoung)
 #define GC_IS_ALLOCATED(META) ((META)->bits.isalloc)
-#define GC_IS_ROOT(META)      ((META)->bits.isroot)
+#define GC_IS_ROOT(META)      ((META)->bits.thd_count > 0)
 
 #define GC_FWD_INDEX(META)    ((META)->bits.rc_fwd)
 #define GC_REF_COUNT(META)    ((META)->bits.rc_fwd)
@@ -237,24 +237,24 @@ do { \
 #define GC_SHOULD_PROCESS_AS_ROOT(META)  (GC_IS_ALLOCATED(META) && !GC_IS_ROOT(META))
 #define GC_SHOULD_PROCESS_AS_YOUNG(META) (GC_IS_YOUNG(META))
 
-#define GC_MARK_AS_ROOT(META)   ((META)->bits.isroot = 1)
+#define GC_MARK_AS_ROOT(META)   ((META)->bits.thd_count++)
 #define GC_MARK_AS_MARKED(META) ((META)->bits.ismarked = 1)
 
 #define GC_CLEAR_YOUNG_MARK(META) ((META)->bits.isyoung = 0) 
 #define GC_CLEAR_ROOT_MARK(META) \
     do { \
-        (META)->bits.isroot = 0; \
+        (META)->bits.thd_count--; \
         (META)->bits.ismarked = 0; \
     } while(0)
 
 #define GC_SHOULD_FREE_LIST_ADD(META) (!GC_IS_ALLOCATED(META) || (GC_IS_YOUNG(META) && GC_FWD_INDEX(META) == NON_FORWARDED ))
 
+// wait this does nothing 
 #define GC_CHECK_BOOL_BYTES(META) \
 do { \
     GC_INVARIANT_CHECK((META)->bits.isalloc == 0 || (META)->bits.isalloc == 1); \
     GC_INVARIANT_CHECK((META)->bits.isyoung == 0 || (META)->bits.isyoung == 1); \
     GC_INVARIANT_CHECK((META)->bits.ismarked == 0 || (META)->bits.ismarked == 1); \
-    GC_INVARIANT_CHECK((META)->bits.isroot == 0 || (META)->bits.isroot == 1); \
 } while(0)
 
 #endif // VERBOSE_HEADER
