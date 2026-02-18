@@ -2,8 +2,6 @@
 
 #include "../common.h"
 
-#define MEM_STATS
-
 #ifdef MEM_STATS
 
 #include <iostream>
