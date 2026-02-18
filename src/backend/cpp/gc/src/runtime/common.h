@@ -12,8 +12,10 @@
 // - Building `dev` (make BUILD=dev) disables all flags and builds with -O0
 // - Building `release` (make BUILD=release) disables all flags and builds 
 //   with -O2
-// - If finer flag control is desired compiliation options `-DMEM_STATS`
+// - If finer flag control is desired compiliation, options `-DMEM_STATS`
 //   , `-DBSQ_GC_CHECK_ENABLED` and `-DVERBOSE_HEADER` may be specified
+//   and enabled through the cli argument `OPTIONS` 
+//   (i.e. make BUILD=release OPTIONS=-DMEM_STATS)
 // - The experimental `epsilon` allocator may be used for comparison of 
 //   GC performance to a simple bump-pointer allocator (no gc). To enable add
 //   the CLI argument `ALLOC=epsilon`
