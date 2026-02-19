@@ -10,6 +10,7 @@
 #endif
 
 #include <atomic>
+#include <list>
 
 //Can also use other values like 0xFFFFFFFFFFFFFFFFul
 #define ALLOC_DEBUG_MEM_INITIALIZE_VALUE 0x0ul
@@ -78,7 +79,7 @@ public:
     // NOTE: as our gc allocators are declared statically, the addresses 
     // of a PageList will not change. However, if PageLists need to be 
     // used elsewhere, extra care will be needed (i.e. stack allocs)
-    std::atomic<PageList*> owner; // What list are we in (if any)?
+    std::atomic<void*> owner; // What list are we in (if any)?
     PageInfo* prev;
     PageInfo* next;
 
@@ -348,7 +349,7 @@ private:
 	
     inline void rotateFullAllocPage()
     {	
-		this->pendinggc_pages.push(this->alloc_page);
+		this->pendinggc_pages.push_back(this->alloc_page);
     }
 
     static int getBucketIndex(PageInfo* p)
@@ -414,11 +415,13 @@ private:
 
 public:
 	// TODO: move these somewhere better. Public for now.	
-    PageList pendinggc_pages; // Pages that are pending GC
+    std::list<PageInfo*> pendinggc_pages; // Pages that are pending GC
 	PageList& decd_pages; // ref to gtl_infos decd_pages list
 
     GCAllocator(__CoreGC::TypeInfoBase* _alloctype) noexcept; 
-
+	GCAllocator operator=(const GCAllocator&) = delete;
+	GCAllocator(const GCAllocator&) = delete;
+	
 	__CoreGC::TypeInfoBase* getAllocType() const noexcept
 	{
 		return this->alloctype;	

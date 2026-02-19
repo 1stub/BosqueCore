@@ -89,7 +89,8 @@ size_t PageInfo::rebuild() noexcept
 void PageInfo::removeSelfFromStorage()
 {
 	GC_INVARIANT_CHECK(this->owner != nullptr);
-	this->owner.load()->remove(this);
+	PageList* l = static_cast<PageList*>(this->owner.load());
+	l->remove(this);
 	this->owner = nullptr;
 }
 
@@ -164,8 +165,13 @@ void GCAllocator::processCollectorPages(BSQMemoryTheadLocalInfo* tinfo) noexcept
         this->evacfreelist = nullptr;
     }
 
-    while(!this->pendinggc_pages.empty()) {
-        PageInfo* p = this->pendinggc_pages.pop();
+	if(this->pendinggc_pages.size() > 1)
+		this->pendinggc_pages.sort();
+    
+	while(!this->pendinggc_pages.empty()) {
+        PageInfo* p = this->pendinggc_pages.front();
+		this->pendinggc_pages.pop_front();
+
         tinfo->bytes_freed += p->rebuild();
         this->processPage(p);
     }

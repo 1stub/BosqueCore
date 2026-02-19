@@ -185,7 +185,7 @@ extern MemStats g_memstats;
 #define MEM_STATS_PRINT(S)
 
 #define MEM_STATS_START(NAME)
-#define MEM_STATS_END(MS, PHASE, NAME)
+#define MEM_STATS_END(PHASE, MS)
 
 #define UPDATE_MEMSTATS_TOTALS(INFO)
 
