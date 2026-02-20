@@ -15,7 +15,7 @@ GlobalDataStorage GlobalDataStorage::g_global_data{};
 GCAllocator::GCAllocator(__CoreGC::TypeInfoBase* _alloctype) noexcept :
 	alloctype(_alloctype), freelist(nullptr), evacfreelist(nullptr), 
 	alloc_page(nullptr), evac_page(nullptr), filled_pages(),
-	pendinggc_pages(), decd_pages(gtl_info.decd_pages)  {}
+	pendinggc_pages(), freshly_filled_pages(), decd_pages(gtl_info.decd_pages) {}
 
 static void setPageMetaData(PageInfo* pp, GCAllocator* gcalloc) noexcept
 {
@@ -125,7 +125,7 @@ PageInfo* GlobalPageGCManager::tryGetEmptyPage(GCAllocator* gcalloc)
 
 	PageInfo* pp = nullptr;
     if(!this->empty_pages.empty()) {
-        void* page = this->empty_pages.pop();
+        void* page = this->empty_pages.pop_front();
         pp = PageInfo::initialize(page, gcalloc);
     }
 
@@ -143,32 +143,31 @@ void GCAllocator::processPage(PageInfo* p) noexcept
         return ;
     }
      
-    this->filled_pages.push(p);
+    this->filled_pages.push_back(p);
 }
 
-void GCAllocator::processCollectorPages(BSQMemoryTheadLocalInfo* tinfo) noexcept
+void GCAllocator::rotatePages() noexcept
 {
-    if(this->alloc_page != nullptr) {
-        tinfo->bytes_freed += this->alloc_page->rebuild();
-        this->processPage(this->alloc_page);
-
-        this->alloc_page = nullptr;
-        this->freelist = nullptr;
-    }
-    
-    if(this->evac_page != nullptr) {
-        tinfo->bytes_freed += this->evac_page->rebuild();
-        this->processPage(this->evac_page);
-
-        this->evac_page = nullptr;
-        this->evacfreelist = nullptr;
-    }
-
-    while(!this->pendinggc_pages.empty()) {
-        PageInfo* p = this->pendinggc_pages.pop();
-        tinfo->bytes_freed += p->rebuild();
-        this->processPage(p);
-    }
+	if(this->alloc_page != nullptr) {
+		GC_INVARIANT_CHECK(this->alloc_page->owner == nullptr); 
+		this->pendinggc_pages.push_back(this->alloc_page);
+		this->alloc_page = nullptr;
+	}
+	
+	// Evac pages must already be rebuilt when grabbed for allocations, so just
+	// rotate into correct storage location
+	if(this->evac_page != nullptr) {	
+		GC_INVARIANT_CHECK(this->evac_page->owner == nullptr);
+		this->processPage(this->evac_page);
+		this->evac_page = nullptr;
+	}
+	
+	// Merge pages freshly filled as they need to be collected 
+	// -- They get rebuilt lazily when requesting a new page
+	while(!this->freshly_filled_pages.empty()) {
+		PageInfo* p = this->freshly_filled_pages.pop_front();
+		this->pendinggc_pages.push_back(p);
+	}
 }
 
 //
@@ -182,8 +181,12 @@ PageInfo* GCAllocator::tryGetPendingGCPage(float max_util) noexcept
 {
 	PageInfo* pp = nullptr;
 	while(!this->pendinggc_pages.empty()) {
-		PageInfo* p = this->pendinggc_pages.pop();
+		PageInfo* p = this->pendinggc_pages.pop_front();	
+		assert(p->gcalloc == this);
+
 		p->rebuild();
+
+		std::cout << "rebuilt page " << p << " lazily from the pendingc list!\n";
 
 		if(p->approx_utilization < max_util) {
 			pp = p;
@@ -204,7 +207,7 @@ PageInfo* GCAllocator::tryGetPendingRebuildPage(float max_util)
 {	
 	PageInfo* pp = nullptr;
 	while(!gtl_info.decd_pages.empty()) {
-		PageInfo* p = gtl_info.decd_pages.pop();
+		PageInfo* p = gtl_info.decd_pages.pop_front();
 		p->rebuild();
 
 		// Move pages that are not correct type or too full
@@ -290,7 +293,7 @@ void GCAllocator::allocatorRefreshAllocationPage()noexcept
 void GCAllocator::allocatorRefreshEvacuationPage() noexcept
 {
     if(this->evac_page != nullptr) {
-        this->filled_pages.push(this->evac_page);
+        this->filled_pages.push_back(this->evac_page);
     }
 
     this->evac_page = this->getFreshPageForEvacuation();

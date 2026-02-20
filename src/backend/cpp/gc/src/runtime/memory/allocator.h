@@ -178,7 +178,8 @@ struct PageIterator {
 };
 
 class PageList {
-    PageInfo* root;
+    PageInfo* head;
+	PageInfo* tail;
 
     static void reset(PageInfo* p) noexcept
     {
@@ -187,36 +188,42 @@ class PageList {
     }
 
 public:
-    PageList() noexcept : root(nullptr) {}
+    PageList() noexcept : head(nullptr), tail(nullptr) {}
 
     bool empty() const noexcept
     {
-        return this->root == nullptr;
+        return this->head == nullptr && this->tail == nullptr;
     }
 
-    void push(PageInfo* p)
+    void push_back(PageInfo* p)
     {
         assert(p->prev == nullptr && p->next == nullptr && p->owner == nullptr);
        
         p->owner = this;
-        p->prev = nullptr;
-        p->next = this->root;
-
-        if(this->root != nullptr) {
-            this->root->prev = p;
-        }
-
-        this->root = p;
+		
+		if(this->head == nullptr && this->tail == nullptr) {
+			this->head = p;
+			this->tail = p;
+		}
+		else {
+			this->tail->next = p;
+			p->prev = this->tail;
+			this->tail = p;
+		}
     }
 
-    PageInfo* pop()
+    PageInfo* pop_front()
     {
         assert(!this->empty());
         
-        PageInfo* p = this->root;
-        this->root = this->root->next;
-        if(this->root != nullptr) {
-            this->root->prev = nullptr;
+        PageInfo* p = this->head;
+       	if(this->head == this->tail) {
+			this->head = nullptr;
+			this->tail = nullptr;
+		}
+		else {    
+        	this->head = this->head->next;
+			this->head->prev = nullptr;
         }
 
         reset(p);
@@ -231,19 +238,34 @@ public:
             p->prev->next = p->next;
         } 
         else {
-            this->root = p->next;
+            this->head = p->next;
         }
         
         if(p->next != nullptr) {
             p->next->prev = p->prev;
         } 
+		else {
+			this->tail = p->prev;
+		}
 
         reset(p);
     }
 
+/*
+	// This does not work with the "owner" pointer!!!
+	void merge(PageList& src) noexcept
+	{
+		this->tail->next = src.head;
+		src.head->prev = this->tail;
+
+		src.head = nullptr;
+		src.tail = nullptr;
+	}
+*/
+
     PageIterator begin() const noexcept 
     {
-        return PageIterator{ this->root };
+        return PageIterator{ this->head };
     }
 
     PageIterator end() const noexcept 
@@ -279,7 +301,7 @@ public:
     void addNewPage(PageInfo* newPage) noexcept
     {
 		std::lock_guard lk(g_gcmemlock);
-        this->empty_pages.push(newPage);
+        this->empty_pages.push_back(newPage);
     }
 };
 
@@ -350,7 +372,7 @@ private:
 
     inline void rotateFullAllocPage()
     {	
-		this->pendinggc_pages.push(this->alloc_page);
+		this->freshly_filled_pages.push_back(this->alloc_page);
     }
 
     static int getBucketIndex(PageInfo* p)
@@ -377,12 +399,12 @@ private:
         float util = p->approx_utilization;
         if(IS_LOW_UTIL(util)) { 
             int idx = getBucketIndex(p);
-            this->low_util_buckets[idx].push(p);
+            this->low_util_buckets[idx].push_back(p);
             return true;
         }
         else if(IS_HIGH_UTIL(util)) {
             int idx = getBucketIndex(p);
-            this->high_util_buckets[idx].push(p);
+            this->high_util_buckets[idx].push_back(p);
             return true;
         }
         else {
@@ -394,7 +416,7 @@ private:
     {
 		for(int i = 0; i < NUM_LOW_UTIL_BUCKETS; i++) {
             if(!this->low_util_buckets[i].empty()) {
-                PageInfo* p = this->low_util_buckets[i].pop();
+                PageInfo* p = this->low_util_buckets[i].pop_front();
                 return p;
             }
         }
@@ -406,7 +428,7 @@ private:
     {
         for(int i = 0; i < NUM_HIGH_UTIL_BUCKETS; i++) {
             if(!this->high_util_buckets[i].empty()) {
-                PageInfo* p = this->high_util_buckets[i].pop();
+                PageInfo* p = this->high_util_buckets[i].pop_front();
                 return p;
             }
         }
@@ -417,6 +439,7 @@ private:
 public:
 	// TODO: move these somewhere better. Public for now.	
     PageList pendinggc_pages; // Pages that are pending GC
+	PageList freshly_filled_pages; // Pages that have been filled and not gc'd
 	PageList& decd_pages; // ref to gtl_infos decd_pages list
 
     GCAllocator(__CoreGC::TypeInfoBase* _alloctype) noexcept; 
@@ -482,8 +505,9 @@ public:
     //Take a page (that may be in of the page sets -- or may not -- if it is a alloc or evac page) and move it to the appropriate page set
     void processPage(PageInfo* p) noexcept;
 
-    //process all the pending gc pages, the current alloc page, and evac page -- reset for next round
-    void processCollectorPages(BSQMemoryTheadLocalInfo* tinfo) noexcept;
+	// Rotates alloc page into pending gc and evac into appropriate location
+	// then merge freshy_filled_pages onto pendinggc_pages and clear
+	void rotatePages() noexcept;
 
     void allocatorRefreshAllocationPage() noexcept;
 

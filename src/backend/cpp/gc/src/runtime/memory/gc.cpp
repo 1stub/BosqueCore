@@ -169,7 +169,7 @@ void tryUpdateDecdPages(PageInfo* p) noexcept
 	{	
 		p->removeSelfFromStorage();
 		p->in_decsprcsr_list = false;
-		gcalloc.decd_pages.push(p);
+		gcalloc.decd_pages.push_back(p);
 	}
 }
 
@@ -516,9 +516,10 @@ static void walkSingleRoot(void* root, BSQMemoryTheadLocalInfo& tinfo) noexcept
     while(!tinfo.visit_stack.isEmpty()) {
         MarkStackEntry entry = tinfo.visit_stack.pop_back();
 		MetaData* m = GC_GET_META_DATA_ADDR(entry.obj);
-        __CoreGC::TypeInfoBase* typeinfo = GC_TYPE(m);
+    	GC_INVARIANT_CHECK(GC_IS_ALLOCATED(m));
 
         // Can we process further?
+		__CoreGC::TypeInfoBase* typeinfo = GC_TYPE(m);
         if((typeinfo->ptr_mask == PTR_MASK_LEAF) || (entry.color == MARK_STACK_NODE_COLOR_BLACK)) {
             tinfo.pending_young.push_back(entry.obj);
             continue;
@@ -576,6 +577,17 @@ static void updateRoots(BSQMemoryTheadLocalInfo& tinfo)
     tinfo.roots_count = 0;
 }
 
+// Maybe do something here about the live bytes calculation
+static void resetAllocators(BSQMemoryTheadLocalInfo& tinfo) noexcept
+{
+	for(size_t i = 0; i < BSQ_MAX_ALLOC_SLOTS; i++) {
+        GCAllocator* alloc = tinfo.g_gcallocs[i];
+        if(alloc != nullptr) {
+            alloc->rotatePages();
+        }
+    }
+}
+
 // NOTE we need to be weary of the possibility of pages being rebuilt inside of 
 // processAllocatorsPages but also need rebuilding after decs
 void collect() noexcept
@@ -595,7 +607,7 @@ void collect() noexcept
 
     MEM_STATS_START(Nursery);
 
-	// Mark, compact, reprocess pages
+	// Mark and compact
     markingWalk(gtl_info);
     processMarkedYoungObjects(gtl_info);
     
@@ -611,8 +623,7 @@ void collect() noexcept
 	computeMaxDecrementCount(gtl_info);
 
 	// Find dead roots, walk object graph from dead roots updating necessary rcs
-	// rebuild pages who saw decs (TODO do this lazily), and merge remainder of decs
-	// (TODO use a single shared list (?))    	
+	// , and merge remainder of decs onto decs processor
   	MEM_STATS_START(RC_Old);
  
     computeDeadRootsForDecrement(gtl_info);
@@ -625,6 +636,7 @@ void collect() noexcept
 
     // Cleanup for next collection
     updateRoots(gtl_info);
+	resetAllocators(gtl_info);
 
     MEM_STATS_END(Collection, gtl_info.memstats);
 
