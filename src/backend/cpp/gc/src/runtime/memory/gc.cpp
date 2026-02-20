@@ -165,6 +165,7 @@ void tryUpdateDecdPages(PageInfo* p) noexcept
 	GCAllocator& gcalloc = *p->gcalloc;
 	if(    p->owner != nullptr	
 		&& p->owner != &gcalloc.pendinggc_pages
+		&& p->owner != &gcalloc.freshly_filled_pages
 		&& p->owner != &gcalloc.decd_pages) 
 	{	
 		p->removeSelfFromStorage();
@@ -610,6 +611,9 @@ void collect() noexcept
 	// Mark and compact
     markingWalk(gtl_info);
     processMarkedYoungObjects(gtl_info);
+	
+	// Why does it matter if we call this function just after compaction?
+	resetAllocators(gtl_info);
     
 	MEM_STATS_END(Nursery, gtl_info.memstats);
 
@@ -636,7 +640,6 @@ void collect() noexcept
 
     // Cleanup for next collection
     updateRoots(gtl_info);
-	resetAllocators(gtl_info);
 
     MEM_STATS_END(Collection, gtl_info.memstats);
 

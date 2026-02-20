@@ -150,7 +150,10 @@ void GCAllocator::rotatePages() noexcept
 {
 	if(this->alloc_page != nullptr) {
 		GC_INVARIANT_CHECK(this->alloc_page->owner == nullptr); 
-		this->pendinggc_pages.push_back(this->alloc_page);
+
+		this->alloc_page->rebuild();
+		this->processPage(this->alloc_page);
+
 		this->alloc_page = nullptr;
 	}
 	
@@ -158,6 +161,7 @@ void GCAllocator::rotatePages() noexcept
 	// rotate into correct storage location
 	if(this->evac_page != nullptr) {	
 		GC_INVARIANT_CHECK(this->evac_page->owner == nullptr);
+		this->evac_page->rebuild();	
 		this->processPage(this->evac_page);
 		this->evac_page = nullptr;
 	}
@@ -193,7 +197,7 @@ PageInfo* GCAllocator::tryGetPendingGCPage(float max_util) noexcept
 			break;
 		}
 		else {
-			p->gcalloc->processPage(p);	
+			this->processPage(p);	
 		}
 	}
 
