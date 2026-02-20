@@ -550,17 +550,6 @@ static void markingWalk(BSQMemoryTheadLocalInfo& tinfo) noexcept
     gtl_info.visit_stack.clear();
     gtl_info.pending_roots.clear();
 }
-
-static void processAllocatorsPages(BSQMemoryTheadLocalInfo& tinfo)
-{
-    UPDATE_TOTAL_LIVE_BYTES(tinfo.memstats, =, 0);
-    for(size_t i = 0; i < BSQ_MAX_ALLOC_SLOTS; i++) {
-        GCAllocator* alloc = tinfo.g_gcallocs[i];
-        if(alloc != nullptr) {
-            alloc->processCollectorPages(&tinfo);
-        }
-    }
-}
 	
 static inline void computeMaxDecrementCount(BSQMemoryTheadLocalInfo& tinfo) noexcept
 {
@@ -609,7 +598,6 @@ void collect() noexcept
 	// Mark, compact, reprocess pages
     markingWalk(gtl_info);
     processMarkedYoungObjects(gtl_info);
-    processAllocatorsPages(gtl_info);
     
 	MEM_STATS_END(Nursery, gtl_info.memstats);
 

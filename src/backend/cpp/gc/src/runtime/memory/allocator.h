@@ -344,8 +344,10 @@ private:
     PageInfo* getFreshPageForAllocator() noexcept; 
     PageInfo* getFreshPageForEvacuation() noexcept;
 
+	// Pop page of pending gc/decd_pages list and rebuild for alloc use
+	PageInfo* tryGetPendingGCPage(float max_util) noexcept;
 	PageInfo* tryGetPendingRebuildPage(float max_util);
-	
+
     inline void rotateFullAllocPage()
     {	
 		this->pendinggc_pages.push(this->alloc_page);
