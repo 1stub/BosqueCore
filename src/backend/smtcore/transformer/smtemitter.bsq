@@ -1,5 +1,7 @@
 namespace SMTEmitter;
 
+%%const INTEGER_WIDTH = 8n;
+
 namespace SMTNameManager {
     function generateStructConstructorName(tkey: SMTAssembly::TypeKey): CString {
         return CString::concat(tkey.value, '-mk');
@@ -76,6 +78,11 @@ function tryGetConstOperation(op: SMTAssembly::Operation): Option<SMTAssembly::C
     return none;
 }
 
+function isSignedLiteral(op: SMTAssembly::SafeExpression): Bool {
+	return !(op.vtype === 'Nat'<SMTAssembly::TypeKey> 
+		|| op.vtype === 'BigNat'<SMTAssembly::TypeKey>);
+}
+
 function emitResultErrTrgtAs(astype: SMTAssembly::TypeKey): CString {
     return CString::concat('((as @Result-err (@Result ', astype.value, ')) @err-trgt)');
 }
@@ -92,6 +99,13 @@ function emitLiteralNoneExpression(): CString {
     return 'none';
 }
 
+%%
+%% TODO: We will need to do some funny jazz with encoding IEE754 float (12 bits?)
+%% -- Im also thinking in regards to rejecting programs that contain literals
+%%    too large for INTEGER_WIDTH bits, perhaps we should reject the program
+%%    from the smtemitter rather than failing to compile? Maybe something 
+%%    funnier
+%%
 function emitLiteralSimpleExpression(e: SMTAssembly::LiteralSimpleExpression): CString {
     switch(e.vtype) {
         | 'Bool'<SMTAssembly::TypeKey>     => { return e.value; }
@@ -462,12 +476,16 @@ recursive function emitPrefixNotOpExpression(v: SMTAssembly::PrefixNotOpExpressi
 
 recursive function emitPrefixNegateOpExpression(v: SMTAssembly::PrefixNegateOpExpression, eev: SMTEmitterEnv): CString {
     let vv = emitSafeExpression[recursive](v.exp, eev);
-
+	
+	%% TODO: We should really try to get some understanding as to why this `usefp`
+	%% is being checked. It is set if the tkstr of a type is `Float`, `Rational`,
+	%% or `Decimal`. Maybe refers to FP language? Functional programming???
+	%% -- For now I will duplicate my code
     if(!v.usefp) {
-        return CString::concat('(- ', vv, ')');
+        return CString::concat('(bvneg ', vv, ')');
     }
     else {
-        return CString::concat('(- ', vv, ')');
+        return CString::concat('(bvneg ', vv, ')');
     }
 }
 
@@ -488,10 +506,10 @@ recursive function emitBinAddExpression(e: SMTAssembly::BinAddExpression, eev: S
     let rhs = emitSafeExpression[recursive](e.rhs, eev);
 
     if(!e.usefp) {
-        return CString::concat('(+ ', lhs, ' ', rhs, ')');
+        return CString::concat('(bvadd ', lhs, ' ', rhs, ')');
     }
     else {
-        return CString::concat('(+ ', lhs, ' ', rhs, ')');
+        return CString::concat('(bvadd ', lhs, ' ', rhs, ')');
     }
 }
 
@@ -500,10 +518,10 @@ recursive function emitBinSubExpression(e: SMTAssembly::BinSubExpression, eev: S
     let rhs = emitSafeExpression[recursive](e.rhs, eev);
 
     if(!e.usefp) {
-        return CString::concat('(- ', lhs, ' ', rhs, ')');
+        return CString::concat('(bvsub ', lhs, ' ', rhs, ')');
     }
     else {
-        return CString::concat('(- ', lhs, ' ', rhs, ')');
+        return CString::concat('(bvsub ', lhs, ' ', rhs, ')');
     }
 }
 
@@ -512,22 +530,24 @@ recursive function emitBinMultExpression(e: SMTAssembly::BinMultExpression, eev:
     let rhs = emitSafeExpression[recursive](e.rhs, eev);
 
     if(!e.usefp) {
-        return CString::concat('(* ', lhs, ' ', rhs, ')');
+        return CString::concat('(bvmul ', lhs, ' ', rhs, ')');
     }
     else {
-        return CString::concat('(* ', lhs, ' ', rhs, ')');
+        return CString::concat('(bvmul ', lhs, ' ', rhs, ')');
     }
 }
 
 recursive function emitBinDivExpression(e: SMTAssembly::BinDivExpression, eev: SMTEmitterEnv): CString {
     let lhs = emitSafeExpression[recursive](e.lhs, eev);
     let rhs = emitSafeExpression[recursive](e.rhs, eev);
+	
+	let op = if(isSignedLiteral(e.lhs)) then 'bvudiv ' else 'bvsdiv ';
 
     if(!e.usefp) {
-        return CString::concat('(/ ', lhs, ' ', rhs, ')');
+        return CString::concat('(', op, lhs, ' ', rhs, ')');
     }
     else {
-        return CString::concat('(/ ', lhs, ' ', rhs, ')');
+        return CString::concat('(', op, lhs, ' ', rhs, ')');
     }
 }
 
@@ -623,6 +643,12 @@ recursive function emitBinaryNumericCompareExpression(e: SMTAssembly::BinaryNume
     let lhs = emitSafeExpression[recursive](e.lhs, eev);
     let rhs = emitSafeExpression[recursive](e.rhs, eev);
 
+	let signed = isSignedLiteral(e.lhs);
+	let lt = if(signed) then 'bvslt ' else 'bvult ';
+	let le = if(signed) then 'bvsle ' else 'bvule ';
+	let gt = if(signed) then 'bvsgt ' else 'bvugt ';
+	let ge = if(signed) then 'bvsge ' else 'bvuge ';
+
     if(!e.usefp) {
         match(e)@ {
             | SMTAssembly::NumericEqExpression => { return CString::concat('(= ', lhs, ' ', rhs, ')'); }
@@ -637,10 +663,10 @@ recursive function emitBinaryNumericCompareExpression(e: SMTAssembly::BinaryNume
         match(e)@ {
             | SMTAssembly::NumericEqExpression => { return CString::concat('(= ', lhs, ' ', rhs, ')'); }
             | SMTAssembly::NumericNeqExpression => { return CString::concat('(not (= ', lhs, ' ', rhs, '))'); }
-            | SMTAssembly::NumericLessExpression => { return CString::concat('(< ', lhs, ' ', rhs, ')'); }
-            | SMTAssembly::NumericLessEqExpression => { return CString::concat('(<= ', lhs, ' ', rhs, ')'); }
-            | SMTAssembly::NumericGreaterExpression => { return CString::concat('(> ', lhs, ' ', rhs, ')'); }
-            | SMTAssembly::NumericGreaterEqExpression => { return CString::concat('(>= ', lhs, ' ', rhs, ')'); }
+            | SMTAssembly::NumericLessExpression => { return CString::concat('(', lt, lhs, ' ', rhs, ')'); }
+            | SMTAssembly::NumericLessEqExpression => { return CString::concat('(', le, lhs, ' ', rhs, ')'); }
+            | SMTAssembly::NumericGreaterExpression => { return CString::concat('(', gt, lhs, ' ', rhs, ')'); }
+            | SMTAssembly::NumericGreaterEqExpression => { return CString::concat('(', ge, lhs, ' ', rhs, ')'); }
         }
     }
 }
