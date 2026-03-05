@@ -1,6 +1,13 @@
 namespace SMTEmitter;
 
-%%const INTEGER_WIDTH = 8n;
+% Lets just focus on nat for now
+const SMT_NAT_WIDTH: Nat = 8n;
+const SMT_NAT_MAX: Nat = 2n.pow(SMT_NAT_WIDTH); 
+
+%*
+const SMT_INT_WIDTH: Nat = 8n; %% How can I use the nat width here?
+const SMT_INT_MAX: Nat = 2i.pow(SMT_NAT_WIDTH - 1i);
+*%
 
 namespace SMTNameManager {
     function generateStructConstructorName(tkey: SMTAssembly::TypeKey): CString {
