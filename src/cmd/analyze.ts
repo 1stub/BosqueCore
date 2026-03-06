@@ -17,6 +17,10 @@ const bosque_dir: string = path.join(__dirname, "../../../");
 const smt_transform_bin_path = path.join(bosque_dir, "bin/smtemit/SMTEmitter.mjs");
 const smt_runtime_code_path = path.join(bosque_dir, "bin/smtruntime/formula.smt2");
 
+// TODO: We will want to modify the emitted javascript for running the smtemitter
+// to reflect this value (well, if its not the default of 8...)
+const NAT_WITDH: string = "8";
+
 let fullargs = [...process.argv].slice(2);
 if(fullargs.length === 0) {
     Status.error("No input files specified!\n");
@@ -78,6 +82,8 @@ const smtcomponenttags = [
     ";;--DATATYPE_TERM_CONSTRUCTORS--;;",
     ";;--SUBTYPE_PREDICATES--;;",
     ";;--VFIELD_ACCESS--;;",
+	";;--SMV_CONSTANTS--;;",
+	";;--VALIDATES--;;",
     ";;--VALIDATE_PREDICATES--;;"
 ];
 
@@ -100,12 +106,7 @@ function generateFormulaFile(smtcomponents: string, outname: string) {
         formula = processSingleComponent(formula, smtcomponents, rterm);
     }
 
-    //set the constants for SMV -- right now just defaults
-    const smv_constants = [
-        "(declare-const SMV_I_RANGE Int) (assert (= SMV_I_RANGE 32))",
-        "(declare-const SMV_STR_LENGTH Int) (assert (= SMV_STR_LENGTH 16))"
-    ];
-    formula = formula.replace(";;--SMV_CONSTANTS--;;", smv_constants.join("\n"));
+	formula = formula.replace(";;--NAT_BV_WIDTH--;;", NAT_WITDH);
 
     Status.output("    Writing SMT Formula File...\n");
     try {

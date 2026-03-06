@@ -1,8 +1,8 @@
 namespace SMTEmitter;
 
-% Lets just focus on nat for now
-const SMT_NAT_WIDTH: Nat = 8n;
-const SMT_NAT_MAX: Nat = 2n.pow(SMT_NAT_WIDTH); 
+const natwidth: Nat = 8n;
+const maxnat: Nat = 2n.pow(natwidth - 1n); 
+const natlit_charwidth: Nat = natwidth // 4n;
 
 %*
 const SMT_INT_WIDTH: Nat = 8n; %% How can I use the nat width here?
@@ -85,9 +85,17 @@ function tryGetConstOperation(op: SMTAssembly::Operation): Option<SMTAssembly::C
     return none;
 }
 
+%*
+%% We could have like an access field expression here, so we cant just rely on simpleLiteral encoding type...
 function isSignedLiteral(op: SMTAssembly::SafeExpression): Bool {
 	return !(op.vtype === 'Nat'<SMTAssembly::TypeKey> 
 		|| op.vtype === 'BigNat'<SMTAssembly::TypeKey>);
+}
+*%
+
+%% TODO: Not sure how to infer sign yet, so we will just work with nats for now
+function isSignedLiteral(op: SMTAssembly::SafeExpression): Bool {
+	return false;
 }
 
 function emitResultErrTrgtAs(astype: SMTAssembly::TypeKey): CString {
@@ -98,29 +106,47 @@ function emitResultErrOtherAs(astype: SMTAssembly::TypeKey): CString {
     return CString::concat('((as @Result-err (@Result ', astype.value, ')) @err-other)');
 }
 
-function emitTaggedNumericType(nstr: CString, tag: CString): CString {
-    return cleanOptionalLeadingPlus(nstr.removeSuffixString(tag));
+function padLiteral(lit: CString): CString {
+	let npad = natlit_charwidth - lit.size();
+	
+	return Algorithm::while<(|Nat, CString|)>((|0n, lit|),
+		pred(st) => st.0 < npad,
+		fn(st) => (|st.0 + 1n, st.1.prepend('0')|)
+	).1;
+}
+
+%% TODO: Pretty sure here we will want to have the toHex be a method of CString (so we dont
+%% need to define it for all literal types)
+function emitLiteralAsBV(lit: Nat): CString {
+	let hex = lit.toHexCString();
+	let pad = padLiteral(hex);
+	return CString::concat('#x', pad);
+}
+
+function emitTaggedNumericType(e: SMTAssembly::LiteralSimpleExpression, tag: CString): CString {	
+    let estr = cleanOptionalLeadingPlus(e.value.removeSuffixString(tag));
+
+	assert(e.vtype === 'Nat'<SMTAssembly::TypeKey>);
+
+	let lit = Nat::fromCString(estr);
+	validate(lit <= maxnat);
+	
+	return emitLiteralAsBV(lit);
 }
 
 function emitLiteralNoneExpression(): CString {
     return 'none';
 }
 
-%%
 %% TODO: We will need to do some funny jazz with encoding IEE754 float (12 bits?)
-%% -- Im also thinking in regards to rejecting programs that contain literals
-%%    too large for INTEGER_WIDTH bits, perhaps we should reject the program
-%%    from the smtemitter rather than failing to compile? Maybe something 
-%%    funnier
-%%
 function emitLiteralSimpleExpression(e: SMTAssembly::LiteralSimpleExpression): CString {
     switch(e.vtype) {
         | 'Bool'<SMTAssembly::TypeKey>     => { return e.value; }
-        | 'Nat'<SMTAssembly::TypeKey>    => { return emitTaggedNumericType(e.value, 'n'); }
-        | 'Int'<SMTAssembly::TypeKey>    => { return emitTaggedNumericType(e.value, 'i'); }
-        | 'BigNat'<SMTAssembly::TypeKey> => { return emitTaggedNumericType(e.value, 'N'); }
-        | 'BigInt'<SMTAssembly::TypeKey> => { return emitTaggedNumericType(e.value, 'I'); }
-        | 'Float'<SMTAssembly::TypeKey>  => { return emitTaggedNumericType(e.value, 'f'); }
+        | 'Nat'<SMTAssembly::TypeKey>    => { return emitTaggedNumericType(e, 'n'); }
+        | 'Int'<SMTAssembly::TypeKey>    => { return emitTaggedNumericType(e, 'i'); }
+        | 'BigNat'<SMTAssembly::TypeKey> => { return emitTaggedNumericType(e, 'N'); }
+        | 'BigInt'<SMTAssembly::TypeKey> => { return emitTaggedNumericType(e, 'I'); }
+        | 'Float'<SMTAssembly::TypeKey>  => { return emitTaggedNumericType(e, 'f'); }
     }
 }
 
@@ -660,10 +686,10 @@ recursive function emitBinaryNumericCompareExpression(e: SMTAssembly::BinaryNume
         match(e)@ {
             | SMTAssembly::NumericEqExpression => { return CString::concat('(= ', lhs, ' ', rhs, ')'); }
             | SMTAssembly::NumericNeqExpression => { return CString::concat('(not (= ', lhs, ' ', rhs, '))'); }
-            | SMTAssembly::NumericLessExpression => { return CString::concat('(< ', lhs, ' ', rhs, ')'); }
-            | SMTAssembly::NumericLessEqExpression => { return CString::concat('(<= ', lhs, ' ', rhs, ')'); }
-            | SMTAssembly::NumericGreaterExpression => { return CString::concat('(> ', lhs, ' ', rhs, ')'); }
-            | SMTAssembly::NumericGreaterEqExpression => { return CString::concat('(>= ', lhs, ' ', rhs, ')'); }
+            | SMTAssembly::NumericLessExpression => { return CString::concat('(', lt, lhs, ' ', rhs, ')'); }
+            | SMTAssembly::NumericLessEqExpression => { return CString::concat('(', le, lhs, ' ', rhs, ')'); }
+            | SMTAssembly::NumericGreaterExpression => { return CString::concat('(', gt, lhs, ' ', rhs, ')'); }
+            | SMTAssembly::NumericGreaterEqExpression => { return CString::concat('(', ge, lhs, ' ', rhs, ')'); }
         }
     }
     else {
@@ -1671,7 +1697,6 @@ function emitAssembly(asm: SMTAssembly::Assembly, trgterr: (|Option<SMTAssembly:
             return emitFunctionDecl(asm.funcs.get(t), trgterr);
         }
 
-
         if(asm.nsbuiltins.has(t)) {
 			let builtin = asm.nsbuiltins.get(t);
 			if (builtin.specialname === 's_mockService'){
@@ -1682,13 +1707,15 @@ function emitAssembly(asm: SMTAssembly::Assembly, trgterr: (|Option<SMTAssembly:
 
 				let mock_fun = emitBuiltinFunctionDecl(builtin,trgterr);
 				return CString::concat(mock_const, mock_fun);
-			}else{
+			}
+			else{
 				return emitBuiltinFunctionDecl(builtin, trgterr);
 			}
         }
         
         abort;
     });
+
     let efuncs = CString::concat(
         '#BEGIN ;;--FUNCTION_DECLS--;;',
         CString::joinAll('%n;%n;', efuncs_list),
@@ -1781,11 +1808,37 @@ function emitAssembly(asm: SMTAssembly::Assembly, trgterr: (|Option<SMTAssembly:
         '#END ;;--VFIELD_ACCESS--;;'
     );
 
+	let natrange = CString::concat('(declare-const SMV_N_RANGE Nat) (assert (= SMV_N_RANGE ', emitLiteralAsBV(maxnat), '))%n;');
+	let intrange = '(declare-const SMV_I_RANGE Int) (assert (= SMV_I_RANGE 32))%n;'; %% TODO: Convert me!
+	let strrange = '(declare-const SMV_STR_LENGTH Int) (assert (= SMV_STR_LENGTH 16))';
+	let ranges   = CString::concat(
+		'#BEGIN ;;--SMV_CONSTANTS--;;%n;',
+		CString::join('%n;', natrange, intrange, strrange),
+		'#END ;;--SMV_CONSTANTS--;;%n;'
+	);
+
+	%% Just incase anything funny needs to happen I'll leave these here
+	let valnone   = '(define-fun @Validate-None ((v None)) Bool true)';
+	let valbool   = '(define-fun @Validate-Bool ((v Bool)) Bool true)';
+	let valnat    = CString::concat('(define-fun @Validate-Nat ((v Nat)) Bool (and (bvule ', emitLiteralAsBV(0n), ' v) (bvule v SMV_N_RANGE)))');
+	let valint    = '(define-fun @Validate-Int ((v Int)) Bool (and (<= (- SMV_I_RANGE) v) (<= v SMV_I_RANGE)))';
+	let valbignat = '(define-fun @Validate-BigNat ((v BigNat)) Bool (and (<= 0 v) (<= v SMV_I_RANGE)))';
+	let valbigint = '(define-fun @Validate-BigInt ((v BigInt)) Bool (and (<= (- SMV_I_RANGE) v) (<= v SMV_I_RANGE)))';
+	let valfloat  = '(define-fun @Validate-Float ((v Float)) Bool (and (<= -1024.0 v) (<= v 1024.0)))';
+	let valcstr   = '(define-fun @Validate-CString ((v CString)) Bool (and (<= (str.len v) SMV_STR_LENGTH) (str.in.re v (re.* (re.union (str.to.re "\u{9}") (re.range " " "~"))))))';
+	let valstr    = '(define-fun @Validate-String ((v String)) Bool (<= (str.len v) SMV_STR_LENGTH))';
+	let primvals  = CString::join('%n;',
+		'#BEGIN ;;--VALIDATES--;;%n;', 
+		CString::join('%n;', valnone, valbool, valnat, valint, valbignat, valbigint), 
+		CString::join('%n;', valfloat, valcstr, valstr),
+		'#END ;;--VALIDATES--;;%n;'
+	);
+
     let validates = CString::join('%n;',
         '#BEGIN ;;--VALIDATE_PREDICATES--;;',
         CString::joinAll('%n;', asm.validators.map<CString>(fn(vf) => emitFunctionDecl(vf, trgterr))),
         '#END ;;--VALIDATE_PREDICATES--;;'
     );
 
-    return CString::join('%n;', predecl_str, CString::join('%n;', stddecls, stdcons, termcons), subchecks_str, CString::join('%n;', efuncs, validates));
+    return CString::join('%n;', predecl_str, CString::join('%n;', stddecls, stdcons, termcons), subchecks_str, CString::join('%n;', efuncs, ranges, primvals, validates));
 }

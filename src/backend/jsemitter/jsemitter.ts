@@ -2309,6 +2309,12 @@ class JSEmitter {
         else if(bname === "s_nat_from_cstring") {
             bop = `BigInt(str)`;
         }
+		else if(bname === "s_nat_pow") {
+	        bop = `a ** b`;	
+		}
+		else if(bname === "s_nat_tohex") {
+	        bop = `a.toString(16)`;	
+		}
         else if(bname === "s_int_to_cstring") {
             bop = `v.toString()`;
         }

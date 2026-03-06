@@ -42,6 +42,10 @@ __internal __typedeclable __keycomparable __numeric entity Nat {
         return NumericOps::s_natPow(this, b);
     }
 
+	method toHexCString(): CString {
+		return NumericOps::s_natToHex(this);	
+	}
+
 #endif %% STRIPPED_CORE
 }
 
