@@ -13,7 +13,7 @@ const prefix =
 '"use strict";\n' +
 'let _$consts = {};\n' +
 '\n' +
-'import { $VRepr, _$softfails, _$supertypes, _$fisSubtype, _$fisNotSubtype, _$fasSubtype, _$fasNotSubtype, _$None, _$not, _$negate, _$add, _$sub, _$mult, _$div, _$bval, _$fkeq, _$fkeqopt, _$fkneq, _$fkneqopt, _$fkless, _$fnumeq, _$fnumless, _$fnumlesseq, _$exhaustive, _$abort, _$assert, _$formatchk, _$invariant, _$validate, _$precond, _$softprecond, _$postcond, _$softpostcond, _$memoconstval, _$accepts, _$format } from "./runtime.mjs";\n' +
+'import { $VRepr, _$softfails, _$supertypes, _$fisSubtype, _$fisNotSubtype, _$fasSubtype, _$fasNotSubtype, _$None, _$not, _$negate, _$add, _$sub, _$mult, _$div, _$bval, _$fkeq, _$fkeqopt, _$fkneq, _$fkneqopt, _$fkless, _$fnumeq, _$fnumless, _$fnumlesseq, _$exhaustive, _$abort, _$assert, _$formatchk, _$invariant, _$validate, _$precond, _$softprecond, _$postcond, _$softpostcond, _$memoconstval, _$accepts, _$format, _$toHex } from "./runtime.mjs";\n' +
 'import { _$setnone_lit, _$parsemap, _$emitmap, _$parseBSQON, _$emitBSQON } from "./bsqon.mjs";\n' +
 'import { _$extractMock } from "./smtextract.mjs";\n' +
 '\n'
@@ -2312,9 +2312,6 @@ class JSEmitter {
 		else if(bname === "s_nat_pow") {
 	        bop = `a ** b`;	
 		}
-		else if(bname === "s_nat_tohex") {
-	        bop = `a.toString(16)`;	
-		}
         else if(bname === "s_int_to_cstring") {
             bop = `v.toString()`;
         }
@@ -2366,6 +2363,9 @@ class JSEmitter {
         else if(bname === "cstring_replace_all_string_occurrences") {
             bop = `s.replaceAll(target, replacement)`;
         }
+		else if(bname === "cstring_tohex") {
+	        bop = `_$toHex(s)`;	
+		}
         else if(bname === "string_from_cstring") {
             bop = `s`;
         }

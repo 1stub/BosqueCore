@@ -41,11 +41,6 @@ __internal __typedeclable __keycomparable __numeric entity Nat {
     method pow(b: Nat): Nat {
         return NumericOps::s_natPow(this, b);
     }
-
-	method toHexCString(): CString {
-		return NumericOps::s_natToHex(this);	
-	}
-
 #endif %% STRIPPED_CORE
 }
 
@@ -405,6 +400,11 @@ __internal __typedeclable __keycomparable entity CString {
     method replaceAllStringOccurrences(target: CString, replace: CString): CString {
         return CStringOps::s_replaceAllStringOccurrences(this, target, replace);
     }
+
+	%% Convert numeric cstring literal to appropriate hex representation
+	method toHex(): CString {
+		return CStringOps::s_toHex(this);	
+	}
 #endif %% STRIPPED_CORE
 }
 

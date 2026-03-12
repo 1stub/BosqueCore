@@ -350,6 +350,16 @@ function _$format(str, ...values) {
 	});
 }
 
+const _$toHex = (str) => {
+    const lit = BigInt(str)
+	var fmtd = lit;
+
+	// TODO: Need to figure out how we can represent 2's complement without javascript
+	// tacking on a negative sign... (to the hex value)
+
+	return fmtd.toString(16);
+}
+
 export {
     $VRepr,
     _$softfails,
@@ -365,5 +375,6 @@ export {
     _$abort, _$assert, _$formatchk, _$invariant, _$validate, _$precond, _$softprecond, _$postcond, _$softpostcond,
     _$memoconstval,
     _$accepts,
-	_$format
+	_$format,
+	_$toHex
 };
