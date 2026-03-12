@@ -1,13 +1,20 @@
 namespace SMTEmitter;
 
+%% I feel like there should be a good way to manage our different types here, to where we 
+%% have just one width that everyone inherits from
+%% -- Perhaps just use a CString? (and wtf would be max float :/)
+%% -- Or would be be better to let each type be flexible in their size? i.e. intwidth == 8, bigintwitdh == 16, floatwitdth != intwidth...
+%% -- And I suspect we will need to do some post-processing to dynamically update sizes for literals that are too large to be represented
+%%    Pretty sure we could try processing the smt file using z3 during the post processing, fuzz for keywords (Int, BigInt, Nat, etc) and if
+%%    any are detected then we have literals that are too big and should increment our base sizes
+
 const natwidth: Nat = 8n;
-const maxnat: Nat = 2n.pow(natwidth - 1n); 
+const maxnat: Nat = 128n; 
 const natlit_charwidth: Nat = natwidth // 4n;
 
-%*
-const SMT_INT_WIDTH: Nat = 8n; %% How can I use the nat width here?
-const SMT_INT_MAX: Nat = 2i.pow(SMT_NAT_WIDTH - 1i);
-*%
+const intwidth: Int = 8i;
+const maxint: Int = 128i;
+const minint: Int = -128i;
 
 namespace SMTNameManager {
     function generateStructConstructorName(tkey: SMTAssembly::TypeKey): CString {
@@ -83,19 +90,6 @@ function tryGetConstOperation(op: SMTAssembly::Operation): Option<SMTAssembly::C
     }
 
     return none;
-}
-
-%*
-%% We could have like an access field expression here, so we cant just rely on simpleLiteral encoding type...
-function isSignedLiteral(op: SMTAssembly::SafeExpression): Bool {
-	return !(op.vtype === 'Nat'<SMTAssembly::TypeKey> 
-		|| op.vtype === 'BigNat'<SMTAssembly::TypeKey>);
-}
-*%
-
-%% TODO: Not sure how to infer sign yet, so we will just work with nats for now
-function isSignedLiteral(op: SMTAssembly::SafeExpression): Bool {
-	return false;
 }
 
 function emitResultErrTrgtAs(astype: SMTAssembly::TypeKey): CString {
@@ -574,7 +568,7 @@ recursive function emitBinDivExpression(e: SMTAssembly::BinDivExpression, eev: S
     let lhs = emitSafeExpression[recursive](e.lhs, eev);
     let rhs = emitSafeExpression[recursive](e.rhs, eev);
 	
-	let op = if(isSignedLiteral(e.lhs)) then 'bvudiv ' else 'bvsdiv ';
+	let op = if(e.signed) then 'bvudiv ' else 'bvsdiv ';
 
     if(!e.usefp) {
         return CString::concat('(', op, lhs, ' ', rhs, ')');
@@ -676,30 +670,48 @@ recursive function emitBinaryNumericCompareExpression(e: SMTAssembly::BinaryNume
     let lhs = emitSafeExpression[recursive](e.lhs, eev);
     let rhs = emitSafeExpression[recursive](e.rhs, eev);
 
-	let signed = isSignedLiteral(e.lhs);
-	let lt = if(signed) then 'bvslt ' else 'bvult ';
-	let le = if(signed) then 'bvsle ' else 'bvule ';
-	let gt = if(signed) then 'bvsgt ' else 'bvugt ';
-	let ge = if(signed) then 'bvsge ' else 'bvuge ';
-
     if(!e.usefp) {
         match(e)@ {
             | SMTAssembly::NumericEqExpression => { return CString::concat('(= ', lhs, ' ', rhs, ')'); }
             | SMTAssembly::NumericNeqExpression => { return CString::concat('(not (= ', lhs, ' ', rhs, '))'); }
-            | SMTAssembly::NumericLessExpression => { return CString::concat('(', lt, lhs, ' ', rhs, ')'); }
-            | SMTAssembly::NumericLessEqExpression => { return CString::concat('(', le, lhs, ' ', rhs, ')'); }
-            | SMTAssembly::NumericGreaterExpression => { return CString::concat('(', gt, lhs, ' ', rhs, ')'); }
-            | SMTAssembly::NumericGreaterEqExpression => { return CString::concat('(', ge, lhs, ' ', rhs, ')'); }
+            | SMTAssembly::NumericLessExpression => { 
+				let lt = if($e.signed) then 'bvslt ' else 'bvult ';
+				return CString::concat('(', lt, lhs, ' ', rhs, ')'); 
+			}
+            | SMTAssembly::NumericLessEqExpression => { 
+				let le = if($e.signed) then 'bvsle ' else 'bvule ';
+				return CString::concat('(', le, lhs, ' ', rhs, ')'); 
+			}
+            | SMTAssembly::NumericGreaterExpression => { 
+				let gt = if($e.signed) then 'bvsgt ' else 'bvugt ';
+				return CString::concat('(', gt, lhs, ' ', rhs, ')'); 
+			}
+            | SMTAssembly::NumericGreaterEqExpression => { 
+				let ge = if($e.signed) then 'bvsge ' else 'bvuge ';
+				return CString::concat('(', ge, lhs, ' ', rhs, ')'); 
+			}
         }
     }
     else {
         match(e)@ {
             | SMTAssembly::NumericEqExpression => { return CString::concat('(= ', lhs, ' ', rhs, ')'); }
             | SMTAssembly::NumericNeqExpression => { return CString::concat('(not (= ', lhs, ' ', rhs, '))'); }
-            | SMTAssembly::NumericLessExpression => { return CString::concat('(', lt, lhs, ' ', rhs, ')'); }
-            | SMTAssembly::NumericLessEqExpression => { return CString::concat('(', le, lhs, ' ', rhs, ')'); }
-            | SMTAssembly::NumericGreaterExpression => { return CString::concat('(', gt, lhs, ' ', rhs, ')'); }
-            | SMTAssembly::NumericGreaterEqExpression => { return CString::concat('(', ge, lhs, ' ', rhs, ')'); }
+            | SMTAssembly::NumericLessExpression => { 
+				let lt = if($e.signed) then 'bvslt ' else 'bvult ';
+				return CString::concat('(', lt, lhs, ' ', rhs, ')'); 
+			}
+            | SMTAssembly::NumericLessEqExpression => { 
+				let le = if($e.signed) then 'bvsle ' else 'bvule ';
+				return CString::concat('(', le, lhs, ' ', rhs, ')'); 
+			}
+            | SMTAssembly::NumericGreaterExpression => { 
+				let gt = if($e.signed) then 'bvsgt ' else 'bvugt ';
+				return CString::concat('(', gt, lhs, ' ', rhs, ')'); 
+			}
+            | SMTAssembly::NumericGreaterEqExpression => { 
+				let ge = if($e.signed) then 'bvsge ' else 'bvuge ';
+				return CString::concat('(', ge, lhs, ' ', rhs, ')'); 
+			}
         }
     }
 }

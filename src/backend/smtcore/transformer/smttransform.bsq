@@ -168,6 +168,11 @@ entity SMTTransformer {
         return tks === 'Float'<BSQAssembly::TypeKey> || tks === 'Rational'<BSQAssembly::TypeKey> || tks === 'Decimal'<BSQAssembly::TypeKey>;
     }
 
+	function useSignedBinOps(tt: BSQAssembly::TypeSignature): Bool {
+		let tks = tt.tkeystr;
+		return tks !== 'Nat'<BSQAssembly::TypeKey> && tks !== 'BigNat'<BSQAssembly::TypeKey>;
+	}
+
     function tryGetForceInlineInfo(decl: BSQAssembly::AbstractInvokeDecl): Option<CString> {
         let isinline = decl.attributes.someOf(pred(a) => a.name === '__inline'<BSQAssembly::Identifier>);
         if(!isinline) {
@@ -1156,8 +1161,8 @@ entity SMTTransformer {
             return nctx, this.wrapOperationResult(exp.etype, subop, obinds);
         }
         else {
-            let lesstest = SMTAssembly::NumericLessExpression{lexp, rexp, SMTTransformer::useFPSemanticsForOperator(exp.opertype)};
-            let chekd = SMTAssembly::IfThenElseExpression{lesstest, SMTAssembly::AbortExpression{smtetype, nctx.errCtr}, SMTAssembly::WrapIntoResultExpression{smtetype, subop}};
+            let lesstest = SMTAssembly::NumericLessExpression{lexp, rexp, SMTTransformer::useFPSemanticsForOperator(exp.opertype), SMTTransformer::useSignedBinOps(exp.opertype) };
+            let chekd = SMTAssembly::IfThenElseExpression{lesstest, SMTAssembly::AbortExpression{smtetype, nctx.errCtr}, SMTAssembly::WrapIntoResultExpression{smtetype, subop} };
             
             return nctx.addError(exp.sinfo), this.wrapOperationResultWErr(exp.etype, chekd, obinds);
         }
@@ -1174,7 +1179,7 @@ entity SMTTransformer {
         let smtetype = this.transformStdTypeToSMT(exp.etype);
 
         let lexp, rexp, nctx, obinds = this.processBinaryArgs[recursive](exp.lhs, exp.rhs, ctx);
-        let divop = SMTAssembly::BinDivExpression{lexp, rexp, SMTTransformer::useFPSemanticsForOperator(exp.opertype)};
+        let divop = SMTAssembly::BinDivExpression{lexp, rexp, SMTTransformer::useFPSemanticsForOperator(exp.opertype), SMTTransformer::useSignedBinOps(exp.opertype)};
 
         let ztest = SMTAssembly::NumericEqExpression{rexp, SMTAssembly::AccessStaticFieldExpression{smtetype, 'zero'}, SMTTransformer::useFPSemanticsForOperator(exp.opertype)};
         let chekd = SMTAssembly::IfThenElseExpression{ztest, SMTAssembly::AbortExpression{smtetype, nctx.errCtr}, SMTAssembly::WrapIntoResultExpression{smtetype, divop}};
@@ -1290,16 +1295,16 @@ entity SMTTransformer {
                 opexp = SMTAssembly::NumericNeqExpression{lexp, rexp, SMTTransformer::useFPSemanticsForOperator(exp.opertype)}; 
             }
             | BSQAssembly::NumericLessExpression => { 
-                opexp = SMTAssembly::NumericLessExpression{lexp, rexp, SMTTransformer::useFPSemanticsForOperator(exp.opertype)}; 
+                opexp = SMTAssembly::NumericLessExpression{lexp, rexp, SMTTransformer::useFPSemanticsForOperator(exp.opertype), SMTTransformer::useSignedBinOps(exp.opertype)}; 
             }
             | BSQAssembly::NumericLessEqExpression => { 
-                opexp = SMTAssembly::NumericLessEqExpression{lexp, rexp, SMTTransformer::useFPSemanticsForOperator(exp.opertype)}; 
+                opexp = SMTAssembly::NumericLessEqExpression{lexp, rexp, SMTTransformer::useFPSemanticsForOperator(exp.opertype), SMTTransformer::useSignedBinOps(exp.opertype)}; 
             }
             | BSQAssembly::NumericGreaterExpression => { 
-                opexp = SMTAssembly::NumericGreaterExpression{lexp, rexp, SMTTransformer::useFPSemanticsForOperator(exp.opertype)}; 
+                opexp = SMTAssembly::NumericGreaterExpression{lexp, rexp, SMTTransformer::useFPSemanticsForOperator(exp.opertype), SMTTransformer::useSignedBinOps(exp.opertype)}; 
             }
             | BSQAssembly::NumericGreaterEqExpression => { 
-                opexp = SMTAssembly::NumericGreaterEqExpression{lexp, rexp, SMTTransformer::useFPSemanticsForOperator(exp.opertype)}; 
+                opexp = SMTAssembly::NumericGreaterEqExpression{lexp, rexp, SMTTransformer::useFPSemanticsForOperator(exp.opertype), SMTTransformer::useSignedBinOps(exp.opertype)}; 
             }
         }
 

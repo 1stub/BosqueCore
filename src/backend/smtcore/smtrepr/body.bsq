@@ -257,7 +257,7 @@ of
 | BinAddExpression { }
 | BinSubExpression { }
 | BinMultExpression { }
-| BinDivExpression { }
+| BinDivExpression { field signed: Bool; }
 ;
 
 datatype BinaryKeyEqExpression provides SafeExpression 
@@ -316,10 +316,10 @@ datatype BinaryNumericCompareExpression provides SafeExpression using {
 of
 | NumericEqExpression { }
 | NumericNeqExpression { }
-| NumericLessExpression { }
-| NumericLessEqExpression { }
-| NumericGreaterExpression { }
-| NumericGreaterEqExpression { }
+| NumericLessExpression { field signed: Bool; }
+| NumericLessEqExpression { field signed: Bool; }
+| NumericGreaterExpression { field signed: Bool; }
+| NumericGreaterEqExpression { field signed: Bool; }
 ;
 
 entity MapEntryConstructorExpression provides SafeExpression {
