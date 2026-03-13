@@ -103,7 +103,9 @@ function emitResultErrOtherAs(astype: SMTAssembly::TypeKey): CString {
     return CString::concat('((as @Result-err (@Result ', astype.value, ')) @err-other)');
 }
 
+%*
 function padLiteral(lit: CString): CString {
+    %% When we return signed values without proper truncation this fails...
 	let npad = natlit_charwidth - lit.size();
 	
 	return Algorithm::while<(|Nat, CString|)>((|0n, lit|),
@@ -111,11 +113,12 @@ function padLiteral(lit: CString): CString {
 		fn(st) => (|st.0 + 1n, st.1.prepend('0')|)
 	).1;
 }
+*%
 
 function emitLiteralAsBV(s: CString): CString {
-	let hex = s.toHex();
-	let pad = padLiteral(hex);
-	return CString::concat('#x', pad);
+	let hex = s.toHex(natlit_charwidth);
+	%%let pad = padLiteral(hex);
+	return CString::concat('#x', hex);
 }
 
 function emitTaggedNumericType(e: SMTAssembly::LiteralSimpleExpression, tag: CString): CString {	

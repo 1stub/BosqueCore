@@ -350,14 +350,25 @@ function _$format(str, ...values) {
 	});
 }
 
-const _$toHex = (str) => {
-    const lit = BigInt(str)
-	var fmtd = lit;
+const _$toHex = (str, width) => {
+    // Assumes in cpp runtime bigint/nat are 128 bits
+    const MAX_BIG_INT = 2n**128n - 1n;
+    var lit = BigInt(str);
+    if(lit < 0n) {
+        lit = MAX_BIG_INT + lit + 1n;
+    }
 
-	// TODO: Need to figure out how we can represent 2's complement without javascript
-	// tacking on a negative sign... (to the hex value)
+    var res = lit.toString(16);
+    const len = res.length;
+    const nwidth = Number(width);
+    if(len < nwidth) {
+        res = res.padStart(nwidth, '0');
+    }
+    else {
+        res = res.substring(len - nwidth);
+    }
 
-	return fmtd.toString(16);
+    return res;
 }
 
 export {

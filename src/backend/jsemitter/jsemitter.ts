@@ -2364,7 +2364,7 @@ class JSEmitter {
             bop = `s.replaceAll(target, replacement)`;
         }
 		else if(bname === "cstring_tohex") {
-	        bop = `_$toHex(s)`;	
+	        bop = `_$toHex(s, width)`;	
 		}
         else if(bname === "string_from_cstring") {
             bop = `s`;
