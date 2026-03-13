@@ -103,21 +103,8 @@ function emitResultErrOtherAs(astype: SMTAssembly::TypeKey): CString {
     return CString::concat('((as @Result-err (@Result ', astype.value, ')) @err-other)');
 }
 
-%*
-function padLiteral(lit: CString): CString {
-    %% When we return signed values without proper truncation this fails...
-	let npad = natlit_charwidth - lit.size();
-	
-	return Algorithm::while<(|Nat, CString|)>((|0n, lit|),
-		pred(st) => st.0 < npad,
-		fn(st) => (|st.0 + 1n, st.1.prepend('0')|)
-	).1;
-}
-*%
-
 function emitLiteralAsBV(s: CString): CString {
 	let hex = s.toHex(natlit_charwidth);
-	%%let pad = padLiteral(hex);
 	return CString::concat('#x', hex);
 }
 
@@ -129,7 +116,7 @@ function emitTaggedNumericType(e: SMTAssembly::LiteralSimpleExpression, tag: CSt
 			let lit = Nat::fromCString(estr);
 			validate(lit <= maxnat);
 		}
-        | 'Int'<SMTAssembly::TypeKey>    => { 
+        | '@Int'<SMTAssembly::TypeKey>    => { 
 			let lit = Int::fromCString(estr); 
 			validate(lit >= minint && lit <= maxint); 
 		}
@@ -150,7 +137,7 @@ function emitLiteralSimpleExpression(e: SMTAssembly::LiteralSimpleExpression): C
     switch(e.vtype) {
         | 'Bool'<SMTAssembly::TypeKey>   => { return e.value; }
         | 'Nat'<SMTAssembly::TypeKey>    => { return emitTaggedNumericType(e, 'n'); }
-        | 'Int'<SMTAssembly::TypeKey>    => { return emitTaggedNumericType(e, 'i'); }
+        | '@Int'<SMTAssembly::TypeKey>    => { return emitTaggedNumericType(e, 'i'); }
         | 'BigNat'<SMTAssembly::TypeKey> => { return emitTaggedNumericType(e, 'N'); }
         | 'BigInt'<SMTAssembly::TypeKey> => { return emitTaggedNumericType(e, 'I'); }
         | 'Float'<SMTAssembly::TypeKey>  => { return emitTaggedNumericType(e, 'f'); }
@@ -1833,13 +1820,14 @@ function emitAssembly(asm: SMTAssembly::Assembly, trgterr: (|Option<SMTAssembly:
         '#END ;;--VFIELD_ACCESS--;;'
     );
 
+    let defaultrange = '(declare-const SMV_I_RANGE Int) (assert (= SMV_I_RANGE 32))';
 	let natrange = CString::concat('(declare-const SMV_N_RANGE Nat) (assert (= SMV_N_RANGE ', emitLiteralAsBV(s_maxnat), '))%n;');
-	let bvint_min = CString::concat('(declare-const SMV_I_MIN Int) (assert (= SMV_I_MIN ', emitLiteralAsBV(s_minint), '))%n;');
-	let bvint_max = CString::concat('(declare-const SMV_I_MAX Int) (assert (= SMV_I_MAX ', emitLiteralAsBV(s_maxint), '))%n;');
+	let bvint_min = CString::concat('(declare-const SMV_I_MIN @Int) (assert (= SMV_I_MIN ', emitLiteralAsBV(s_minint), '))%n;');
+	let bvint_max = CString::concat('(declare-const SMV_I_MAX @Int) (assert (= SMV_I_MAX ', emitLiteralAsBV(s_maxint), '))%n;');
 	let strrange = '(declare-const SMV_STR_LENGTH Int) (assert (= SMV_STR_LENGTH 16))';
 	let ranges   = CString::concat(
 		'#BEGIN ;;--SMV_CONSTANTS--;;%n;',
-		CString::join('%n;', natrange, bvint_min, bvint_max, strrange),
+		CString::join('%n;', defaultrange, natrange, bvint_min, bvint_max, strrange),
 		'#END ;;--SMV_CONSTANTS--;;%n;'
 	);
 
@@ -1847,7 +1835,7 @@ function emitAssembly(asm: SMTAssembly::Assembly, trgterr: (|Option<SMTAssembly:
 	let valnone   = '(define-fun @Validate-None ((v None)) Bool true)';
 	let valbool   = '(define-fun @Validate-Bool ((v Bool)) Bool true)';
 	let valnat    = CString::concat('(define-fun @Validate-Nat ((v Nat)) Bool (and (bvule ', emitLiteralAsBV('0'), ' v) (bvule v SMV_N_RANGE)))');
-	let valint    = '(define-fun @Validate-Int ((v Int)) Bool (and (bvsle SMV_I_MIN v) (bvsle v SMV_I_MAX)))';
+	let valint    = '(define-fun @Validate-Int ((v @Int)) Bool (and (bvsle SMV_I_MIN v) (bvsle v SMV_I_MAX)))';
 	let valbignat = '(define-fun @Validate-BigNat ((v BigNat)) Bool (and (<= 0 v) (<= v SMV_I_RANGE)))';
 	let valbigint = '(define-fun @Validate-BigInt ((v BigInt)) Bool (and (<= (- SMV_I_RANGE) v) (<= v SMV_I_RANGE)))';
 	let valfloat  = '(define-fun @Validate-Float ((v Float)) Bool (and (<= -1024.0 v) (<= v 1024.0)))';

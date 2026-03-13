@@ -28,6 +28,11 @@ namespace TransformNameManager {
     }
 
     function convertTypeKey(nskey: BSQAssembly::TypeKey): SMTAssembly::TypeKey {
+        %% Since `Int` is a provided sort already we need to rename it for bv version 
+        if(nskey === 'Int'<BSQAssembly::TypeKey>) {
+            return SMTAssembly::TypeKey::from('@Int');
+        }
+
         return SMTAssembly::TypeKey::from(resymbolCStringForSMT(nskey.value));
     }
 

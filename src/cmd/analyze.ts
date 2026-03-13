@@ -106,7 +106,7 @@ function generateFormulaFile(smtcomponents: string, outname: string) {
         formula = processSingleComponent(formula, smtcomponents, rterm);
     }
 
-	formula = formula.replace(";;--NAT_BV_WIDTH--;;", NAT_WITDH);
+	formula = formula.replace(/;;--NAT_BV_WIDTH--;;/g, NAT_WITDH);
 
     Status.output("    Writing SMT Formula File...\n");
     try {

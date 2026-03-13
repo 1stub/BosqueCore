@@ -27,7 +27,7 @@
 (declare-datatype None ((none)))
 ;;Bool is Bool
 (define-sort Nat () (_ BitVec ;;--NAT_BV_WIDTH--;;))
-;;Int is Int
+(define-sort @Int () (_ BitVec ;;--NAT_BV_WIDTH--;;)) ;; This should change, probably
 (define-sort BigNat () Int)
 (define-sort BigInt () Int)
 (define-sort Float () Real)
