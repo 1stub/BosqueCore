@@ -63,10 +63,24 @@ __internal __typedeclable __keycomparable __numeric entity Int {
 
 %** Primitive big-integer value. **%
 __internal __typedeclable __keycomparable __numeric entity BigNat {
+    method toCString(): CString {
+        return NumericOps::s_bignatToCString(this);
+    }
+    
+    function fromCString(str: CString): BigNat {
+        return NumericOps::s_bignatFromCString(str);
+    }
 }
 
 %** Primitive big-integer value. **%
 __internal __typedeclable __keycomparable __numeric entity BigInt {
+    method toCString(): CString {
+        return NumericOps::s_bigintToCString(this);
+    }
+
+    function fromCString(str: CString): BigInt {
+        return NumericOps::s_bigintFromCString(str);
+    }
 }
 
 %** Primitive rational value. **%

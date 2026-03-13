@@ -10,6 +10,12 @@ namespace NumericOps {
     function s_intToCString(v: Int): CString = s_int_to_cstring;
     function s_intFromCString(str: CString): Int = s_int_from_cstring;
 
+    function s_bignatToCString(v: BigNat): CString = s_bignat_to_cstring;
+    function s_bignatFromCString(str: CString): BigNat = s_bignat_from_cstring;
+
+    function s_bigintToCString(v: BigInt): CString = s_bigint_to_cstring;
+    function s_bigintFromCString(str: CString): BigInt = s_bigint_from_cstring;
+
     function s_floatPow(a: Float, b: Float): Float = s_float_pow;
     function s_floatSqrt(a: Float): Float = s_float_sqrt;
 

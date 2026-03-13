@@ -27,9 +27,11 @@
 (declare-datatype None ((none)))
 ;;Bool is Bool
 (define-sort Nat () (_ BitVec ;;--NAT_BV_WIDTH--;;))
-(define-sort @Int () (_ BitVec ;;--NAT_BV_WIDTH--;;)) ;; This should change, probably
-(define-sort BigNat () Int)
-(define-sort BigInt () Int)
+
+;; These two comments should differ. Each type should be able to have their own size
+(define-sort @Int () (_ BitVec ;;--NAT_BV_WIDTH--;;))
+(define-sort BigNat () ;;--NAT_BV_WIDTH--;;)
+(define-sort BigInt () ;;--NAT_BV_WIDTH--;;)
 (define-sort Float () Real)
 (define-sort CString () String)
 ;;String is String
