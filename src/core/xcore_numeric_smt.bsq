@@ -18,6 +18,8 @@ namespace NumericOps {
 
     function s_floatPow(a: Float, b: Float): Float = s_float_pow;
     function s_floatSqrt(a: Float): Float = s_float_sqrt;
+    function s_floatToCString(v: Float): CString = s_float_to_cstring;
+    function s_floatFromCString(str: CString): Float = s_float_from_cstring;
 
     function s_natPow(a: Nat, b: Nat): Nat = s_nat_pow;
 }

@@ -19,7 +19,9 @@ const smt_runtime_code_path = path.join(bosque_dir, "bin/smtruntime/formula.smt2
 
 // TODO: We will want to modify the emitted javascript for running the smtemitter
 // to reflect this value (well, if its not the default of 8...)
-const NAT_WITDH: string = "8";
+const NAT_WIDTH: string = "8";
+const BIGNAT_WIDTH: string = "16";
+const FLOAT_WIDTH: string = "16";
 
 let fullargs = [...process.argv].slice(2);
 if(fullargs.length === 0) {
@@ -106,7 +108,9 @@ function generateFormulaFile(smtcomponents: string, outname: string) {
         formula = processSingleComponent(formula, smtcomponents, rterm);
     }
 
-	formula = formula.replace(/;;--NAT_BV_WIDTH--;;/g, NAT_WITDH);
+	formula = formula.replace(/;;--NAT_BV_WIDTH--;;/g, NAT_WIDTH);
+	formula = formula.replace(/;;--BIGNAT_BV_WIDTH--;;/g, BIGNAT_WIDTH);
+	formula = formula.replace(/;;--FLOAT_WIDTH--;;/g, FLOAT_WIDTH);
 
     Status.output("    Writing SMT Formula File...\n");
     try {

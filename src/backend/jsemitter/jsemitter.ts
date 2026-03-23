@@ -2336,6 +2336,12 @@ class JSEmitter {
         else if(bname === "s_float_sqrt") {
             bop = `Math.sqrt(a)`;
         }
+        else if(bname === "s_float_to_cstring") {
+            bop = `v.toString()`;
+        }
+        else if(bname === "s_float_from_cstring") {
+            bop = `parseFloat(str)`;
+        }
         else if(bname === "cstring_empty") {
             bop = `s === ""`;
         }

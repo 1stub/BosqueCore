@@ -117,6 +117,14 @@ __internal __typedeclable __numeric entity Float {
     {
         return NumericOps::s_floatSqrt(x);
     }
+
+    method toCString(): CString {
+        return NumericOps::s_floatToCString(this);
+    }
+
+    function fromCString(str: CString): Float {
+        return NumericOps::s_floatFromCString(str);
+    }
 #endif %% STRIPPED_CORE
 }
 

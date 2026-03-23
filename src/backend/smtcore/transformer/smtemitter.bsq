@@ -32,6 +32,16 @@ const s_maxbigint: CString = '32767';
 const minbigint: BigInt = -32767I;
 const s_minbigint: CString = '-32767';
 
+%% Whats a good name for max float? We want this value to represent the next number (which would be whole)
+%% after the largest possible value (for easier comparisons)
+%% -- not really sure how to correctly represent these, i just snagged these numbers from wikipedia
+
+%% For Float16
+const maxfloat: Float = 65504.0f;
+const minfloat: Float = -65504.0f;
+const s_maxfloat: CString = '65504.0';
+const s_minfloat: CString = '-65504.0';
+
 namespace SMTNameManager {
     function generateStructConstructorName(tkey: SMTAssembly::TypeKey): CString {
         return CString::concat(tkey.value, '-mk');
@@ -63,6 +73,11 @@ namespace SMTNameManager {
 
     function generateVirtualFieldAccessorFunctionName(tkey: SMTAssembly::TypeKey, fname: CString): CString {
         return CString::concat('@VField-', tkey.value , '-', fname);
+    }
+
+    %% Ehhh for now we will just use `roundNearestTiesToEven` as the rounding mode
+    function getFPRoundingMode(): CString {
+        return ' RNE ';
     }
 
     function generateResultName(rtype: SMTAssembly::ResultType): CString {
@@ -116,8 +131,19 @@ function emitResultErrOtherAs(astype: SMTAssembly::TypeKey): CString {
     return CString::concat('((as @Result-err (@Result ', astype.value, ')) @err-other)');
 }
 
-function emitLiteralAsBV(s: CString, big: Bool): CString {
-	let hex = if(!big) then s.toHex(natlit_charwidth) 
+%% TODO(?): For now we will use the `to_fp` simplifier to avoid needing to convert sign,
+%% exponent, and signifigand into binary/hex repr and emit explicitly. If performance 
+%% is looking weird we should try with explicit constructors; i.e. (for Float16):
+%% [sign:1][exponent:5][signifigand:10]
+%% (assert (= z (fp #b0 #b00001 #b0000000001)))
+
+function emitLiteralAsBV(s: CString, tag: CString): CString {
+    if(tag === 'f') { 
+        return CString::concat('((_ to_fp 5 11)', SMTNameManager::getFPRoundingMode(), s, ')');
+    }
+
+    let isbig = tag === 'N' || tag === 'I';
+	let hex = if(!isbig) then s.toHex(natlit_charwidth) 
         else s.toHex(bignatlit_charwidth);
 	return CString::concat('#x', hex);
 }
@@ -142,11 +168,13 @@ function emitTaggedNumericType(e: SMTAssembly::LiteralSimpleExpression, tag: CSt
 			let lit = BigInt::fromCString(estr); 
 			validate(lit >= minbigint && lit <= maxbigint); 
         }
-        | 'Float'<SMTAssembly::TypeKey>  => { abort; }
+        | 'Float'<SMTAssembly::TypeKey>  => { 
+            let lit = Float::fromCString(estr);
+            validate(lit >= minfloat && lit <= maxfloat); 
+        }
 	}
 
-    let isbig = if(tag === 'N' || tag === 'I') then true else false;
-	return emitLiteralAsBV(estr, isbig);
+	return emitLiteralAsBV(estr, tag);
 }
 
 function emitLiteralNoneExpression(): CString {
@@ -524,16 +552,11 @@ recursive function emitPrefixNotOpExpression(v: SMTAssembly::PrefixNotOpExpressi
 
 recursive function emitPrefixNegateOpExpression(v: SMTAssembly::PrefixNegateOpExpression, eev: SMTEmitterEnv): CString {
     let vv = emitSafeExpression[recursive](v.exp, eev);
-	
-	%% TODO: We should really try to get some understanding as to why this `usefp`
-	%% is being checked. It is set if the tkstr of a type is `Float`, `Rational`,
-	%% or `Decimal`. Maybe refers to FP language? Functional programming???
-	%% -- For now I will duplicate my code
     if(!v.usefp) {
         return CString::concat('(bvneg ', vv, ')');
     }
     else {
-        return CString::concat('(bvneg ', vv, ')');
+        return CString::concat('(fp.neg ', vv, ')');
     }
 }
 
@@ -557,7 +580,7 @@ recursive function emitBinAddExpression(e: SMTAssembly::BinAddExpression, eev: S
         return CString::concat('(bvadd ', lhs, ' ', rhs, ')');
     }
     else {
-        return CString::concat('(bvadd ', lhs, ' ', rhs, ')');
+        return CString::concat('(fp.add', SMTNameManager::getFPRoundingMode(), lhs, ' ', rhs, ')');
     }
 }
 
@@ -569,7 +592,7 @@ recursive function emitBinSubExpression(e: SMTAssembly::BinSubExpression, eev: S
         return CString::concat('(bvsub ', lhs, ' ', rhs, ')');
     }
     else {
-        return CString::concat('(bvsub ', lhs, ' ', rhs, ')');
+        return CString::concat('(fp.sub', SMTNameManager::getFPRoundingMode(), lhs, ' ', rhs, ')');
     }
 }
 
@@ -581,21 +604,20 @@ recursive function emitBinMultExpression(e: SMTAssembly::BinMultExpression, eev:
         return CString::concat('(bvmul ', lhs, ' ', rhs, ')');
     }
     else {
-        return CString::concat('(bvmul ', lhs, ' ', rhs, ')');
+        return CString::concat('(fp.mul', SMTNameManager::getFPRoundingMode(), lhs, ' ', rhs, ')');
     }
 }
 
 recursive function emitBinDivExpression(e: SMTAssembly::BinDivExpression, eev: SMTEmitterEnv): CString {
     let lhs = emitSafeExpression[recursive](e.lhs, eev);
     let rhs = emitSafeExpression[recursive](e.rhs, eev);
-	
-	let op = if(e.signed) then 'bvudiv ' else 'bvsdiv ';
 
-    if(!e.usefp) {
+    if(!e.usefp) {    
+	    let op = if(e.signed) then 'bvudiv ' else 'bvsdiv ';
         return CString::concat('(', op, lhs, ' ', rhs, ')');
     }
     else {
-        return CString::concat('(', op, lhs, ' ', rhs, ')');
+        return CString::concat('(fp.div', SMTNameManager::getFPRoundingMode(), lhs, ' ', rhs, ')');
     }
 }
 
@@ -696,16 +718,16 @@ recursive function emitBinaryNumericCompareExpression(e: SMTAssembly::BinaryNume
             | SMTAssembly::NumericEqExpression => { return CString::concat('(= ', lhs, ' ', rhs, ')'); }
             | SMTAssembly::NumericNeqExpression => { return CString::concat('(not (= ', lhs, ' ', rhs, '))'); }
             | SMTAssembly::NumericLessExpression => { 
-				let lt = if($e.signed) then 'bvslt ' else 'bvult ';
-				return CString::concat('(', lt, lhs, ' ', rhs, ')'); 
+                let lt = if($e.signed) then 'bvslt ' else 'bvult ';
+                return CString::concat('(', lt, lhs, ' ', rhs, ')'); 
 			}
             | SMTAssembly::NumericLessEqExpression => { 
-				let le = if($e.signed) then 'bvsle ' else 'bvule ';
-				return CString::concat('(', le, lhs, ' ', rhs, ')'); 
+                let le = if($e.signed) then 'bvsle ' else 'bvule ';
+                return CString::concat('(', le, lhs, ' ', rhs, ')'); 
 			}
             | SMTAssembly::NumericGreaterExpression => { 
-				let gt = if($e.signed) then 'bvsgt ' else 'bvugt ';
-				return CString::concat('(', gt, lhs, ' ', rhs, ')'); 
+                let gt = if($e.signed) then 'bvsgt ' else 'bvugt ';
+                return CString::concat('(', gt, lhs, ' ', rhs, ')'); 
 			}
             | SMTAssembly::NumericGreaterEqExpression => { 
 				let ge = if($e.signed) then 'bvsge ' else 'bvuge ';
@@ -718,21 +740,17 @@ recursive function emitBinaryNumericCompareExpression(e: SMTAssembly::BinaryNume
             | SMTAssembly::NumericEqExpression => { return CString::concat('(= ', lhs, ' ', rhs, ')'); }
             | SMTAssembly::NumericNeqExpression => { return CString::concat('(not (= ', lhs, ' ', rhs, '))'); }
             | SMTAssembly::NumericLessExpression => { 
-				let lt = if($e.signed) then 'bvslt ' else 'bvult ';
-				return CString::concat('(', lt, lhs, ' ', rhs, ')'); 
-			}
+                return CString::concat('(fp.lt ', lhs, ' ', rhs, ')'); 
+            }
             | SMTAssembly::NumericLessEqExpression => { 
-				let le = if($e.signed) then 'bvsle ' else 'bvule ';
-				return CString::concat('(', le, lhs, ' ', rhs, ')'); 
-			}
+                return CString::concat('(fp.le ', lhs, ' ', rhs, ')'); 
+            }
             | SMTAssembly::NumericGreaterExpression => { 
-				let gt = if($e.signed) then 'bvsgt ' else 'bvugt ';
-				return CString::concat('(', gt, lhs, ' ', rhs, ')'); 
-			}
+                return CString::concat('(fp.gt ', lhs, ' ', rhs, ')'); 
+            }
             | SMTAssembly::NumericGreaterEqExpression => { 
-				let ge = if($e.signed) then 'bvsge ' else 'bvuge ';
-				return CString::concat('(', ge, lhs, ' ', rhs, ')'); 
-			}
+                return CString::concat('(fp.ge ', lhs, ' ', rhs, ')'); 
+            }
         }
     }
 }
@@ -1841,28 +1859,30 @@ function emitAssembly(asm: SMTAssembly::Assembly, trgterr: (|Option<SMTAssembly:
         '#END ;;--VFIELD_ACCESS--;;'
     );
 
-	let natrange = CString::concat('(declare-const SMV_N_RANGE Nat) (assert (= SMV_N_RANGE ', emitLiteralAsBV(s_maxnat, false), '))%n;');
-    let bvint_min = CString::concat('(declare-const SMV_I_MIN @Int) (assert (= SMV_I_MIN ', emitLiteralAsBV(s_minint, false), '))%n;');
-	let bvint_max = CString::concat('(declare-const SMV_I_MAX @Int) (assert (= SMV_I_MAX ', emitLiteralAsBV(s_maxint, false), '))%n;');   
-	let bignatrange = CString::concat('(declare-const SMV_BN_RANGE Nat) (assert (= SMV_BN_RANGE ', emitLiteralAsBV(s_maxbignat, true), '))%n;');
-    let bvbigint_min = CString::concat('(declare-const SMV_BI_MIN @Int) (assert (= SMV_BI_MIN ', emitLiteralAsBV(s_minbigint, true), '))%n;');
-	let bvbigint_max = CString::concat('(declare-const SMV_BI_MAX @Int) (assert (= SMV_BI_MAX ', emitLiteralAsBV(s_maxbigint, true), '))%n;');
+	let natrange = CString::concat('(declare-const SMV_N_RANGE Nat) (assert (= SMV_N_RANGE ', emitLiteralAsBV(s_maxnat, 'n'), '))');
+    let bvint_min = CString::concat('(declare-const SMV_I_MIN @Int) (assert (= SMV_I_MIN ', emitLiteralAsBV(s_minint, 'i'), '))');
+	let bvint_max = CString::concat('(declare-const SMV_I_MAX @Int) (assert (= SMV_I_MAX ', emitLiteralAsBV(s_maxint, 'i'), '))');   
+	let bignatrange = CString::concat('(declare-const SMV_BN_RANGE BigNat) (assert (= SMV_BN_RANGE ', emitLiteralAsBV(s_maxbignat, 'N'), '))');
+    let bvbigint_min = CString::concat('(declare-const SMV_BI_MIN BigInt) (assert (= SMV_BI_MIN ', emitLiteralAsBV(s_minbigint, 'I'), '))');
+	let bvbigint_max = CString::concat('(declare-const SMV_BI_MAX BigInt) (assert (= SMV_BI_MAX ', emitLiteralAsBV(s_maxbigint, 'I'), '))');
+    let float_min = CString::concat('(declare-const SMV_F_MIN Float) (assert (= SMV_F_MIN ', emitLiteralAsBV(s_minfloat, 'f'), '))');
+    let float_max = CString::concat('(declare-const SMV_F_MAX Float) (assert (= SMV_F_MAX ', emitLiteralAsBV(s_maxfloat, 'f'), '))');
 	let strrange = '(declare-const SMV_STR_LENGTH Int) (assert (= SMV_STR_LENGTH 16))';
 	let ranges   = CString::concat(
 		'#BEGIN ;;--SMV_CONSTANTS--;;%n;',
-		CString::join('%n;', natrange, bvint_min, bvint_max, strrange),
-        CString::join('%n;', bignatrange, bvbigint_min, bvbigint_max),
+		CString::join('%n;', natrange, bvint_min, bvint_max, bignatrange, bvbigint_min, bvbigint_max),
+        CString::join('%n;', float_min, float_max, strrange),
 		'#END ;;--SMV_CONSTANTS--;;%n;'
 	);
 
 	%% Just incase anything funny needs to happen I'll leave these here
 	let valnone   = '(define-fun @Validate-None ((v None)) Bool true)';
 	let valbool   = '(define-fun @Validate-Bool ((v Bool)) Bool true)';
-	let valnat    = CString::concat('(define-fun @Validate-Nat ((v Nat)) Bool (and (bvule ', emitLiteralAsBV('0', false), ' v) (bvule v SMV_N_RANGE)))');
+	let valnat    = CString::concat('(define-fun @Validate-Nat ((v Nat)) Bool (and (bvule ', emitLiteralAsBV('0', 'n'), ' v) (bvule v SMV_N_RANGE)))');
 	let valint    = '(define-fun @Validate-Int ((v @Int)) Bool (and (bvsle SMV_I_MIN v) (bvsle v SMV_I_MAX)))';
-	let valbignat = CString::concat('(define-fun @Validate-BigNat ((v BigNat)) Bool (and (bvule ', emitLiteralAsBV('0', true), ' v) (bvule v SMV_BN_RANGE)))');
-	let valbigint = '(define-fun @Validate-BigInt ((v BigInt)) Bool (and (bvsle (- SMV_BI_MIN) v) (bvsle v SMV_BI_MAX)))';
-	let valfloat  = '(define-fun @Validate-Float ((v Float)) Bool (and (<= -1024.0 v) (<= v 1024.0)))';
+	let valbignat = CString::concat('(define-fun @Validate-BigNat ((v BigNat)) Bool (and (bvule ', emitLiteralAsBV('0', 'N'), ' v) (bvule v SMV_BN_RANGE)))');
+	let valbigint = '(define-fun @Validate-BigInt ((v BigInt)) Bool (and (bvsle SMV_BI_MIN v) (bvsle v SMV_BI_MAX)))';
+	let valfloat  = '(define-fun @Validate-Float ((v Float)) Bool (and (fp.leq SMV_F_MIN v) (fp.leq v SMV_F_MAX)))';
 	let valcstr   = '(define-fun @Validate-CString ((v CString)) Bool (and (<= (str.len v) SMV_STR_LENGTH) (str.in.re v (re.* (re.union (str.to.re "\u{9}") (re.range " " "~"))))))';
 	let valstr    = '(define-fun @Validate-String ((v String)) Bool (<= (str.len v) SMV_STR_LENGTH))';
 	let primvals  = CString::join('%n;',

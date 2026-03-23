@@ -30,9 +30,9 @@
 
 ;; These two comments should differ. Each type should be able to have their own size
 (define-sort @Int () (_ BitVec ;;--NAT_BV_WIDTH--;;))
-(define-sort BigNat () ;;--NAT_BV_WIDTH--;;)
-(define-sort BigInt () ;;--NAT_BV_WIDTH--;;)
-(define-sort Float () Real)
+(define-sort BigNat () (_ BitVec ;;--BIGNAT_BV_WIDTH--;;))
+(define-sort BigInt () (_ BitVec ;;--BIGNAT_BV_WIDTH--;;))
+(define-sort Float () Float;;--FLOAT_WIDTH--;;)
 (define-sort CString () String)
 ;;String is String
 
