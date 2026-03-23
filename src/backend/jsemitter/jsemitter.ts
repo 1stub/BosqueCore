@@ -3244,6 +3244,10 @@ class JSEmitter {
                 decls.push(this.emitCreateAPIValidate(tdecl, undefined, rcvr, fmt));
             }
 
+            if(tdecl.name.includes("Int")) {
+                console.log(tdecl.name);
+            }
+
             const islistopscore = tdecl.ns.ns.join("::") === "Core::ListOps";
             const ismapopscore = tdecl.ns.ns.join("::") === "Core::MapOps";
 
@@ -3362,7 +3366,6 @@ class JSEmitter {
 
     private emitPrimitiveEntityTypeDecl(ns: NamespaceDeclaration, tdecl: PrimitiveEntityTypeDecl, instantiation: TypeInstantiationInfo, fmt: JSCodeFormatter): string {
         const rcvr = new NominalTypeSignature(tdecl.sinfo, undefined, tdecl, []);
-        
         fmt.indentPush();
         let decls: string[] = [];
 
@@ -3383,7 +3386,11 @@ class JSEmitter {
 
         const obj = `Object.create(Object.prototype, {${fmt.nl()}${declsentry}${fmt.nl()}${fmt.indent("})")}`;
 
-        return `export const ${tdecl.name} = ${obj}`;
+        var name = tdecl.name !== "BigInt" 
+            ? tdecl.name 
+            : "_$BigInt";
+
+        return `export const ${name} = ${obj}`;
     }
 
     private emitEnumTypeDecl(ns: NamespaceDeclaration, tdecl: EnumTypeDecl, instantiation: TypeInstantiationInfo, fmt: JSCodeFormatter): string {
@@ -3585,7 +3592,6 @@ class JSEmitter {
 
     private emitEntityTypeDecl(ns: NamespaceDeclaration, tdecl: EntityTypeDecl, instantiation: TypeInstantiationInfo, fmt: JSCodeFormatter): string {
         const rcvr = JSEmitter.generateRcvrForNominalAndBinds(tdecl, instantiation.binds, undefined);
-        
         const rr = this.emitStdTypeDeclHelper(tdecl, rcvr, tdecl.fields, instantiation, true, fmt);
         fmt.indentPush();
         const declsfmt = rr.map((dd) => fmt.indent(dd)).join("," + fmt.nl());

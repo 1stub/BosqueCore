@@ -132,20 +132,22 @@ class EmitNameManager {
     private static emitTypeAccess(currentns: NamespaceDeclaration, ttype: NominalTypeSignature): string {
         const nscope = currentns.fullnamespace.ns[0] === ttype.decl.ns.ns[0] ? (ttype.decl.ns.ns.slice(1).join(".")) : ("$" + ttype.decl.ns.ns.join("."));
         const acroot = nscope !== "" ?  nscope + "." : "";
+        const tname = ttype.decl.name === "BigInt"
+            ? "_$BigInt" : ttype.decl.name;
 
         if(ttype.alltermargs.length === 0) {
-            return acroot + ttype.decl.name;
+            return acroot + tname;
         }
         else {
             const termstr = `<${ttype.alltermargs.map((t) => t.tkeystr).join(", ")}>`;
             if(ttype.decl.isSpecialResultEntity()) {
-                return `${acroot}Result["${termstr}"].${ttype.decl.name}`;
+                return `${acroot}Result["${termstr}"].${tname}`;
             }
             else if(ttype.decl.isSpecialAPIResultEntity()) {
-                return `${acroot}APIResult["${termstr}"].${ttype.decl.name}`;
+                return `${acroot}APIResult["${termstr}"].${tname}`;
             }
             else {
-                return `${acroot}${ttype.decl.name}["${termstr}"]`;
+                return `${acroot}${tname}["${termstr}"]`;
             }
         }
     }
