@@ -42,6 +42,102 @@ const minfloat: Float = -65504.0f;
 const s_maxfloat: CString = '65504.0';
 const s_minfloat: CString = '-65504.0';
 
+%% NOTE: We could make these one generic entity, but the issue is calling the
+%% `...pow()` method as we need to ensure we have a specific type. Well, maybe
+%% it'll be okay? We could have the update just take in a min, max, and width
+entity SMTNat {
+    field bvsize: Nat;
+    field max: Nat;
+
+    %% We should clarify this, but with my new approach pretty sure we can have
+    %% max nat and max int be different (so no need to sub 1n for sign bit)
+    ref method update(nsz: Nat) 
+        requires nsz > this.bvsize;
+    {
+        ref this[bvsize = nsz];
+        ref this[max = 2n.pow(nsz) - 1n];
+        return;
+    }
+}
+
+entity SMTInt {
+    field bvsize: Nat;
+    field min: Int;
+    field max: Int;
+
+    ref method update(nsz: Int) 
+        requires nsz > this.bvsize;
+    {
+        ref this[bvsize = nsz];
+        ref this[max = 2i.pow(nsz - 1i) - 1i];
+        ref this[min = -max];
+        return;
+    }
+}
+
+entity SMTBigNat {
+    field bvsize: Nat;
+    field max: BigNat;
+
+    ref method update(nsz: BigNat) 
+        requires nsz > this.bvsize;
+    {
+        ref this[bvsize = nsz];
+        ref this[max = 2N.pow(nsz) - 1N];
+        return;
+    }
+}
+
+entity SMTBigInt {
+    field bvsize: Nat;
+    field min: BigInt;
+    field max: BigInt;
+
+    ref method update(nsz: BigInt) 
+        requires nsz > this.bvsize;
+    {
+        ref this[bvsize = nsz];
+        ref this[max = 2I.pow(nsz - 1I) - 1I];
+        return;
+    }
+}
+
+entity SMTFloat {
+    %% I am a little bit suspicious of these bounds here, as them seem to just be
+    %% an approximiation, so we may want to be generous in the ranges we allow then
+    %% just forcefully promote to next width
+    %% ** I found these bounds here: https://stackoverflow.com/a/79865044/21400811 **
+    const f16_min: Float = 65504.0f;
+    const f16_max: Float = -65504.0f;
+    const f32_min: Float = 1.2f * Float::pow(10.0f, -38);
+    const f32_max: Float = 3.4f * Float::pow(10.0f, 38);
+    const f64_min: Float = 2.2f * Float::pow(10.0f, -308);
+    const f64_max: Float = 1.8f * Float::pow(10.0f, 308);
+
+    field bvsize: Nat;
+    field min: Float;
+    field max: Float;
+
+    ref method update(nsz: Nat) 
+        requires nsz > this.bvsize;
+    {
+        ref this[bvsize = nsz];
+        switch(nsz) {
+            | 16n => { ref this[min = f16_min]; ref this[max = f16_max]; }
+            | 32n => { ref this[min = f32_min]; ref this[max = f32_max]; }
+            | 64n => { ref this[min = f64_min]; ref this[max = f64_max]; }
+        }
+    }
+}
+
+entity Context {
+    field nat_attrs: SMTNat;
+    field int_attrs: SMTInt;
+    field bignat_attrs: SMTBigNat;
+    field bigint_attrs: SMTBigInt;
+    field float_attrs: SMTFloat;
+}
+
 namespace SMTNameManager {
     function generateStructConstructorName(tkey: SMTAssembly::TypeKey): CString {
         return CString::concat(tkey.value, '-mk');
@@ -148,7 +244,7 @@ function emitLiteralAsBV(s: CString, tag: CString): CString {
 	return CString::concat('#x', hex);
 }
 
-function emitTaggedNumericType(e: SMTAssembly::LiteralSimpleExpression, tag: CString): CString {	
+function emitTaggedNumericType(e: SMTAssembly::LiteralSimpleExpression, tag: CString, ref ctx: Context): CString {	
     let estr = cleanOptionalLeadingPlus(e.value.removeSuffixString(tag));
 	
 	switch(e.vtype) {
