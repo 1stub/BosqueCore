@@ -1,50 +1,9 @@
 namespace SMTEmitter;
 
-%% I feel like there should be a good way to manage our different types here, to where we 
-%% have just one width that everyone inherits from
-%% -- Perhaps just use a CString? (and wtf would be max float :/)
-%% -- Or would be be better to let each type be flexible in their size? i.e. intwidth == 8, bigintwitdh == 16, floatwitdth != intwidth...
-%% -- And I suspect we will need to do some post-processing to dynamically update sizes for literals that are too large to be represented
-%%    Pretty sure we could try processing the smt file using z3 during the post processing, fuzz for keywords (Int, BigInt, Nat, etc) and if
-%%    any are detected then we have literals that are too big and should increment our base sizes
-
-%% What would be best is to feed these into some form of context variable that is generated
-%% from main args (fed in through analyze.ts)
-const natwidth: Nat = 8n;
-const maxnat: Nat = 127n; 
-const s_maxnat: CString = '127'; %% Meh
-const natlit_charwidth: Nat = 2n;
-
-const intwidth: Int = 8i;
-const maxint: Int = 127i;
-const s_maxint: CString = '127';
-const minint: Int = -127i;
-const s_minint: CString = '-127';
-
-const bignatwidth: BigNat = 16N;
-const maxbignat: BigNat = 32767N; 
-const s_maxbignat: CString = '32767'; %% Meh
-const bignatlit_charwidth: Nat = 4n;
-
-const bigintwidth: BigInt = 8I;
-const maxbigint: BigInt = 32767I;
-const s_maxbigint: CString = '32767';
-const minbigint: BigInt = -32767I;
-const s_minbigint: CString = '-32767';
-
-%% Whats a good name for max float? We want this value to represent the next number (which would be whole)
-%% after the largest possible value (for easier comparisons)
-%% -- not really sure how to correctly represent these, i just snagged these numbers from wikipedia
-
-%% For Float16
-const maxfloat: Float = 65504.0f;
-const minfloat: Float = -65504.0f;
-const s_maxfloat: CString = '65504.0';
-const s_minfloat: CString = '-65504.0';
-
 %% NOTE: We could make these one generic entity, but the issue is calling the
 %% `...pow()` method as we need to ensure we have a specific type. Well, maybe
 %% it'll be okay? We could have the update just take in a min, max, and width
+
 entity SMTNat {
     field bvsize: Nat;
     field max: Nat;
@@ -57,6 +16,10 @@ entity SMTNat {
         ref this[bvsize = nsz];
         ref this[max = 2n.pow(nsz) - 1n];
         return;
+    }
+
+    method smtvalidate(v: Nat): Bool {
+        return v <= this.max;
     }
 }
 
@@ -73,6 +36,10 @@ entity SMTInt {
         ref this[min = -max];
         return;
     }
+    
+    method smtvalidate(v: Int): Bool {
+        return v >= this.min && v <= this.max;
+    }
 }
 
 entity SMTBigNat {
@@ -85,6 +52,10 @@ entity SMTBigNat {
         ref this[bvsize = nsz];
         ref this[max = 2N.pow(nsz) - 1N];
         return;
+    }
+
+    method smtvalidate(v: BigNat): Bool {
+        return v <= this.max;
     }
 }
 
@@ -99,6 +70,10 @@ entity SMTBigInt {
         ref this[bvsize = nsz];
         ref this[max = 2I.pow(nsz - 1I) - 1I];
         return;
+    }
+
+    method smtvalidate(v: BigInt): Bool {
+        return v >= this.min && v <= this.max;
     }
 }
 
@@ -127,6 +102,10 @@ entity SMTFloat {
             | 32n => { ref this[min = f32_min]; ref this[max = f32_max]; }
             | 64n => { ref this[min = f64_min]; ref this[max = f64_max]; }
         }
+    }
+
+    method smtvalidate(v: Float): Bool {
+        return v >= this.min && v <= this.max;
     }
 }
 
@@ -233,51 +212,70 @@ function emitResultErrOtherAs(astype: SMTAssembly::TypeKey): CString {
 %% [sign:1][exponent:5][signifigand:10]
 %% (assert (= z (fp #b0 #b00001 #b0000000001)))
 
-function emitLiteralAsBV(s: CString, tag: CString): CString {
-    if(tag === 'f') { 
+%% I think the notion of setting a width to fit our hex values in doesnt really make sense.
+%% We should have a min size (say 8 bits, so two chars) but if we try to make a larger value
+%% there should not be some weird runtime error rather the sucessful creation of the correct
+%% hex value, just its size is too large for what we can represent in a bit vector (which we 
+%% would then detect and recover from by increasing the size of our respctive SMT* primitive)
+
+function emitLiteralAsBV(s: CString, width: Nat, isfloat=false: Bool): CString 
+    requires width >= 8n && width <= 128n; %% min and max bit widths for all primitives 
+{
+    if(isfloat) { 
         return CString::concat('((_ to_fp 5 11)', SMTNameManager::getFPRoundingMode(), s, ')');
     }
 
-    let isbig = tag === 'N' || tag === 'I';
-	let hex = if(!isbig) then s.toHex(natlit_charwidth) 
-        else s.toHex(bignatlit_charwidth);
+    let hex = s.toHex(width);
 	return CString::concat('#x', hex);
 }
 
 function emitTaggedNumericType(e: SMTAssembly::LiteralSimpleExpression, tag: CString, ref ctx: Context): CString {	
     let estr = cleanOptionalLeadingPlus(e.value.removeSuffixString(tag));
-	
+    
+    var width: Nat;
 	switch(e.vtype) {
         | 'Nat'<SMTAssembly::TypeKey>    => { 
 			let lit = Nat::fromCString(estr);
-			validate(lit <= maxnat);
+            if(!ctx.nat_attrs.smtvalidate(lit)) {
+                %% Uhhh how can we figure out the new size without needing a loop...
+                %% I think we are forced to generate the hex value first, count the number
+                %% of chars present (not including '#x'), then multiply that value by 4
+                ref ctx.nat_attrs.update(...); 
+            }
 		}
         | '@Int'<SMTAssembly::TypeKey>    => { 
-			let lit = Int::fromCString(estr); 
-			validate(lit >= minint && lit <= maxint); 
+			let lit = Int::fromCString(estr);  
+            if(!ctx.int_attrs.smtvalidate(lit)) {
+                ref ctx.int_attrs.update(...);
+            }
 		}
         | 'BigNat'<SMTAssembly::TypeKey> => {  
 			let lit = BigNat::fromCString(estr);
-			validate(lit <= maxbignat);
+            if(!ctx.bignat_attrs.smtvalidate(lit)) {
+                ref ctx.bignat_attrs.update(...);
+            }
         }
         | 'BigInt'<SMTAssembly::TypeKey> => { 
 			let lit = BigInt::fromCString(estr); 
-			validate(lit >= minbigint && lit <= maxbigint); 
+            if(!ctx.bigint_attrs.smtvalidate(lit)) {
+                ref ctx.bigint_attrs.update(...);
+            }
         }
         | 'Float'<SMTAssembly::TypeKey>  => { 
             let lit = Float::fromCString(estr);
-            validate(lit >= minfloat && lit <= maxfloat); 
+            if(!ctx.float_attrs.smtvalidate(lit)) {
+                ref ctx.float_attrs.update(...);
+            }
         }
 	}
 
-	return emitLiteralAsBV(estr, tag);
+	return emitLiteralAsBV(estr, width, tag === 'f');
 }
 
 function emitLiteralNoneExpression(): CString {
     return 'none';
 }
 
-%% TODO: We will need to do some funny jazz with encoding IEE754 float (12 bits?)
 function emitLiteralSimpleExpression(e: SMTAssembly::LiteralSimpleExpression): CString {
     switch(e.vtype) {
         | 'Bool'<SMTAssembly::TypeKey>   => { return e.value; }
