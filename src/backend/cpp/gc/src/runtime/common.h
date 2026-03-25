@@ -265,7 +265,8 @@ do { \
 
 #define GC_SHOULD_FREE_LIST_ADD(META) \
 	(!GC_IS_ALLOCATED(META) \
-		|| (GC_IS_YOUNG(META) && GC_FWD_INDEX(META) == NON_FORWARDED && !GC_IS_ROOT(META)))
+		|| (GC_IS_YOUNG(META) && GC_FWD_INDEX(META) == NON_FORWARDED \
+			&& !GC_IS_ROOT(META) && !GC_IS_MARKED(META)))
 
 #define METADATA_DUMP(META) \
 	std::cout << "Meta Data at " << META << ":" << std::endl \
