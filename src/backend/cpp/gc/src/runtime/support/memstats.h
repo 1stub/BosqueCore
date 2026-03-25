@@ -11,7 +11,7 @@
 
 // Buckets store BUCKET_VARIANCE us variance, final entry is for outliers (hopefully never any values present there!)
 #define MAX_MEMSTATS_BUCKETS 25'000 + 1 /* Might want to make this variant */
-#define BUCKET_VARIANCE 2
+#define BUCKET_VARIANCE 0.5
 #define BUCKET_AVERAGE ((BUCKET_VARIANCE) / 2)
 
 enum class Phase {
@@ -20,6 +20,7 @@ enum class Phase {
 	RC_Old
 };
 
+struct PageInfo;
 typedef double Time;
 #define TIME_MAX DBL_MAX
 #define TIMES_LIST_SIZE 500
@@ -83,6 +84,9 @@ struct MemStats {
 
 	// Automatically called at the destruction of a thread
 	void merge(MemStats& src);
+
+    // Compute page usage
+    void processPage(PageInfo* p) noexcept;
 };
 extern MemStats g_memstats;
 
@@ -159,6 +163,9 @@ extern MemStats g_memstats;
             if(alloc != nullptr) { \
                 alloc->updateMemStats(INFO); \
             } \
+        } \
+        for(PageInfo* p : (INFO).decd_pages) { \
+            (INFO).memstats.processPage(p); \
         } \
 		{\
 			std::lock_guard ms_lk(g_gctelemetrylock);\

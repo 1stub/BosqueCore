@@ -62,6 +62,10 @@ PageInfo* PageInfo::initialize(void* block, GCAllocator* gcalloc) noexcept
 
 void PageInfo::rebuild() noexcept
 {
+#ifdef MEM_STATS
+    auto start = std::chrono::high_resolution_clock::now();
+#endif
+
     this->freelist = nullptr;
     this->freecount = 0;
  
@@ -79,6 +83,12 @@ void PageInfo::rebuild() noexcept
         }
     }
     this->approx_utilization = CALC_APPROX_UTILIZATION(this);
+
+#ifdef MEM_STATS
+    auto end = std::chrono::high_resolution_clock::now();
+    Time elapsed = TIME(end - start);
+    gtl_info.memstats.collection_stats.total += elapsed;
+#endif
 }
 
 void PageInfo::removeSelfFromStorage()
@@ -320,35 +330,10 @@ void GCAllocator::allocatorRefreshEvacuationPage() noexcept
 
 #ifdef MEM_STATS
 
-static uint64_t getPageFreeCount(PageInfo* p) noexcept 
-{
-    uint64_t freecount = 0;
-    for(size_t i = 0; i < p->entrycount; i++) {
-        void* obj = p->getObjectAtIndex(i); 
-		MetaData* m = GC_GET_META_DATA_ADDR(obj);
-		if(GC_SHOULD_FREE_LIST_ADD(m)) {
-            freecount++;
-        }
-    }
-
-    return freecount;
-}
-
-static inline void process(PageInfo* page) noexcept
-{
-    if(!page) {
-        return;
-    }
-   
-    uint64_t freecount = getPageFreeCount(page);
-    UPDATE_TOTAL_LIVE_BYTES(gtl_info.memstats, +=, 
-		(page->typeinfo->type_size * (page->entrycount - freecount)));
-    UPDATE_TOTAL_LIVE_OBJECTS(gtl_info.memstats, +=, 
-		(page->entrycount - freecount));
-}
-
 void GCAllocator::updateMemStats(BSQMemoryTheadLocalInfo& tinfo) noexcept
 {
+    assert(this->freshly_filled_pages.empty());
+
     UPDATE_TOTAL_LIVE_BYTES(tinfo.memstats, =, 0);
     UPDATE_TOTAL_ALLOC_COUNT(gtl_info.memstats, +=, GET_ALLOC_COUNT(this));
     UPDATE_TOTAL_ALLOC_MEMORY(gtl_info.memstats, +=, GET_ALLOC_MEMORY(this));
@@ -356,27 +341,27 @@ void GCAllocator::updateMemStats(BSQMemoryTheadLocalInfo& tinfo) noexcept
 
     //compute stats for filled pages
     for(PageInfo* p : this->filled_pages) {
-        process(p);
+        tinfo.memstats.processPage(p);
     }
 
     // Compute stats for high util pages
     for(int i = 0; i < NUM_HIGH_UTIL_BUCKETS; i++) {
         for(PageInfo* p : this->high_util_buckets[i]) {
-            process(p);
+            tinfo.memstats.processPage(p);
         }
     }
 
     // Compute stats for low util pages
     for(int i = 0; i < NUM_LOW_UTIL_BUCKETS; i++) {
         for(PageInfo* p : this->low_util_buckets[i]) {
-            process(p);
+            tinfo.memstats.processPage(p);
         }
     }
 
 	// All pages should have been merged onto the pending gc list at this point
 	// (if we are not running the testing build)
 	for(PageInfo* p : this->pendinggc_pages) {
-		process(p);	
+		tinfo.memstats.processPage(p);	
 	}
 
     if(TOTAL_LIVE_BYTES(gtl_info.memstats) > MAX_LIVE_HEAP(gtl_info.memstats)) {

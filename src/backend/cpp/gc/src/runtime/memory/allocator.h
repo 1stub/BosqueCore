@@ -507,15 +507,15 @@ T* MEM_ALLOC_CHECK(T* alloc)
 }
 
 #ifdef EPSILON
-#	define GC_ALLOC_OBJECT(A) MEM_ALLOC_CHECK(EpsilonAllocator::alloc.allocate())
+#	define GC_ALLOC_OBJECT(A, TINFO) MEM_ALLOC_CHECK(EpsilonAllocator::alloc.allocate(TINFO))
 #else 
-#	define GC_ALLOC_OBJECT(A) MEM_ALLOC_CHECK((A).allocate())
+#	define GC_ALLOC_OBJECT(A, TINFO) MEM_ALLOC_CHECK((A).allocate())
 #endif
 
 template<typename T, typename... Args>
-inline T* allocTypeImpl(GCAllocator& alloc, Args... args) 
+inline T* allocTypeImpl(GCAllocator& alloc, __CoreGC::TypeInfoBase* tinfo, Args... args) 
 {
-    return new (GC_ALLOC_OBJECT(alloc)) T(args...);
+    return new (GC_ALLOC_OBJECT(alloc, tinfo)) T(args...);
 }
 
-#define 𝐀𝐥𝐥𝐨𝐜𝐓𝐲𝐩𝐞(T, A, ...) (allocTypeImpl<T>(A, __VA_ARGS__))
+#define 𝐀𝐥𝐥𝐨𝐜𝐓𝐲𝐩𝐞(T, A, TINFO, ...) (allocTypeImpl<T>(A, TINFO, __VA_ARGS__))

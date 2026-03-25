@@ -913,7 +913,8 @@ function generateGCAlloc(ti: CPPAssembly::TypeInfo): String {
 
 function callGCAlloc(ti: CPPAssembly::TypeInfo, constype: String, cons: String): String {
     let alloc = generateGCAlloc(ti);
-    let body = String::concat(constype, ", ", alloc);
+    let constypeinfo = emitTypeInfoName(constype); 
+    let body = String::concat(constype, ", ", alloc, ", &", constypeinfo); 
     
     return String::concat("𝐀𝐥𝐥𝐨𝐜𝐓𝐲𝐩𝐞( ", body, ", (", cons, ") )");
 }

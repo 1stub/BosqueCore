@@ -26,7 +26,6 @@ private:
 
 #ifdef ALLOC_DEBUG_MEM_DETERMINISTIC
     void* curaddr;
-#else
 #endif
 
     void allocatePage() noexcept {
@@ -92,5 +91,4 @@ public:
     }
 };
 
-#else
 #endif //EPSILON

@@ -4,6 +4,7 @@
 
 #include <cmath>
 #include <iomanip>
+#include "../memory/allocator.h"
 
 MemStats g_memstats{};
 
@@ -350,6 +351,32 @@ void MemStats::merge(MemStats& src)
 	src.updateTotalTime();
 	this->mergeNonTimeLists(src);
 	this->tryMergeTimesLists(src, true);
+}
+
+static uint64_t getPageFreeCount(PageInfo* p) noexcept 
+{
+    uint64_t freecount = 0;
+    for(size_t i = 0; i < p->entrycount; i++) {
+        void* obj = p->getObjectAtIndex(i); 
+		MetaData* m = GC_GET_META_DATA_ADDR(obj);
+		if(GC_SHOULD_FREE_LIST_ADD(m)) {
+            freecount++;
+        }
+    }
+
+    return freecount;
+}
+
+void MemStats::processPage(PageInfo* page) noexcept
+{
+    if(!page) {
+        return;
+    }
+   
+    uint64_t freecount = getPageFreeCount(page);
+    UPDATE_TOTAL_LIVE_BYTES(*this, +=, 
+		(page->typeinfo->type_size * (page->entrycount - freecount)));
+    UPDATE_TOTAL_LIVE_OBJECTS(*this, +=, (page->entrycount - freecount));
 }
 
 #endif // MEM_STATS
