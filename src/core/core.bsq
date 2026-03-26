@@ -58,6 +58,10 @@ __internal __typedeclable __keycomparable __numeric entity Int {
     function fromCString(str: CString): Int {
         return NumericOps::s_intFromCString(str);
     }
+
+    method pow(b: Int): Int {
+        return NumericOps::s_intPow(this, b);
+    }
 #endif %% STRIPPED_CORE
 }
 
@@ -70,6 +74,10 @@ __internal __typedeclable __keycomparable __numeric entity BigNat {
     function fromCString(str: CString): BigNat {
         return NumericOps::s_bignatFromCString(str);
     }
+
+    method pow(b: BigNat): BigNat {
+        return NumericOps::s_bignatPow(this, b);
+    }
 }
 
 %** Primitive big-integer value. **%
@@ -80,6 +88,10 @@ __internal __typedeclable __keycomparable __numeric entity BigInt {
 
     function fromCString(str: CString): BigInt {
         return NumericOps::s_bigintFromCString(str);
+    }
+
+    method pow(b: BigInt): BigInt {
+        return NumericOps::s_bigintPow(this, b);
     }
 }
 

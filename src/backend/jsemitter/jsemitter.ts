@@ -2318,18 +2318,27 @@ class JSEmitter {
         else if(bname === "s_int_from_cstring") {
             bop = `BigInt(str)`;
         }
+		else if(bname === "s_int_pow") {
+	        bop = `a ** b`;	
+		}
         else if(bname === "s_bignat_to_cstring") {
             bop = `v.toString()`;
         }
         else if(bname === "s_bignat_from_cstring") {
             bop = `BigInt(str)`;
         }
+		else if(bname === "s_bignat_pow") {
+	        bop = `a ** b`;	
+		}
         else if(bname === "s_bigint_to_cstring") {
             bop = `v.toString()`;
         }
         else if(bname === "s_bigint_from_cstring") {
             bop = `BigInt(str)`;
         }
+		else if(bname === "s_bigint_pow") {
+	        bop = `a ** b`;	
+		}
         else if(bname === "s_float_power") {
             bop = `Math.pow(a, b)`;
         }

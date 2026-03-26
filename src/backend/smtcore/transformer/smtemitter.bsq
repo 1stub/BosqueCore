@@ -4,6 +4,7 @@ namespace SMTEmitter;
 %% `...pow()` method as we need to ensure we have a specific type. Well, maybe
 %% it'll be okay? We could have the update just take in a min, max, and width
 
+%*
 entity SMTNat {
     field bvsize: Nat;
     field max: Nat;
@@ -116,6 +117,7 @@ entity Context {
     field bigint_attrs: SMTBigInt;
     field float_attrs: SMTFloat;
 }
+*%
 
 namespace SMTNameManager {
     function generateStructConstructorName(tkey: SMTAssembly::TypeKey): CString {
@@ -218,6 +220,7 @@ function emitResultErrOtherAs(astype: SMTAssembly::TypeKey): CString {
 %% hex value, just its size is too large for what we can represent in a bit vector (which we 
 %% would then detect and recover from by increasing the size of our respctive SMT* primitive)
 
+%*
 function emitLiteralAsBV(s: CString, width: Nat, isfloat=false: Bool): CString 
     requires width >= 8n && width <= 128n; %% min and max bit widths for all primitives 
 {
@@ -270,6 +273,87 @@ function emitTaggedNumericType(e: SMTAssembly::LiteralSimpleExpression, tag: CSt
 	}
 
 	return emitLiteralAsBV(estr, width, tag === 'f');
+}
+*%
+
+%% What would be best is to feed these into some form of context variable that is generated
+%% from main args (fed in through analyze.ts)
+const natwidth: Nat = 8n;
+const maxnat: Nat = 127n; 
+const s_maxnat: CString = '127'; %% Meh
+const natlit_charwidth: Nat = 2n;
+
+const intwidth: Int = 8i;
+const maxint: Int = 127i;
+const s_maxint: CString = '127';
+const minint: Int = -127i;
+const s_minint: CString = '-127';
+
+const bignatwidth: BigNat = 16N;
+const maxbignat: BigNat = 32767N; 
+const s_maxbignat: CString = '32767'; %% Meh
+const bignatlit_charwidth: Nat = 4n;
+
+const bigintwidth: BigInt = 8I;
+const maxbigint: BigInt = 32767I;
+const s_maxbigint: CString = '32767';
+const minbigint: BigInt = -32767I;
+const s_minbigint: CString = '-32767';
+
+%% Whats a good name for max float? We want this value to represent the next number (which would be whole)
+%% after the largest possible value (for easier comparisons)
+%% -- not really sure how to correctly represent these, i just snagged these numbers from wikipedia
+
+%% For Float16
+const maxfloat: Float = 65504.0f;
+const minfloat: Float = -65504.0f;
+const s_maxfloat: CString = '65504.0';
+const s_minfloat: CString = '-65504.0';
+
+%% TODO(?): For now we will use the `to_fp` simplifier to avoid needing to convert sign,
+%% exponent, and signifigand into binary/hex repr and emit explicitly. If performance 
+%% is looking weird we should try with explicit constructors; i.e. (for Float16):
+%% [sign:1][exponent:5][signifigand:10]
+%% (assert (= z (fp #b0 #b00001 #b0000000001)))
+
+function emitLiteralAsBV(s: CString, tag: CString): CString {
+    if(tag === 'f') { 
+        return CString::concat('((_ to_fp 5 11)', SMTNameManager::getFPRoundingMode(), s, ')');
+    }
+
+    let isbig = tag === 'N' || tag === 'I';
+	let hex = if(!isbig) then s.toHex(natlit_charwidth) 
+        else s.toHex(bignatlit_charwidth);
+	return CString::concat('#x', hex);
+}
+
+function emitTaggedNumericType(e: SMTAssembly::LiteralSimpleExpression, tag: CString): CString {	
+    let estr = cleanOptionalLeadingPlus(e.value.removeSuffixString(tag));
+	
+	switch(e.vtype) {
+        | 'Nat'<SMTAssembly::TypeKey>    => { 
+			let lit = Nat::fromCString(estr);
+			validate(lit <= maxnat);
+		}
+        | '@Int'<SMTAssembly::TypeKey>    => { 
+			let lit = Int::fromCString(estr); 
+			validate(lit >= minint && lit <= maxint); 
+		}
+        | 'BigNat'<SMTAssembly::TypeKey> => {  
+			let lit = BigNat::fromCString(estr);
+			validate(lit <= maxbignat);
+        }
+        | 'BigInt'<SMTAssembly::TypeKey> => { 
+			let lit = BigInt::fromCString(estr); 
+			validate(lit >= minbigint && lit <= maxbigint); 
+        }
+        | 'Float'<SMTAssembly::TypeKey>  => { 
+            let lit = Float::fromCString(estr);
+            validate(lit >= minfloat && lit <= maxfloat); 
+        }
+	}
+
+	return emitLiteralAsBV(estr, tag);
 }
 
 function emitLiteralNoneExpression(): CString {
