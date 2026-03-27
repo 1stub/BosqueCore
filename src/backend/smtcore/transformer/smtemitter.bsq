@@ -1501,7 +1501,7 @@ function emitConstInitializerHelper(cname: CString, vtype: SMTAssembly::ResultTy
 }
 
 %** Return the declarations and definitions as 2 seperate components **%
-function emitConstInfo(nsconsts: List<SMTAssembly::NamespaceConstDecl>, typeconsts: List<SMTAssembly::ConstMemberDecl>): CString, CString {
+function emitConstInfo(nsconsts: List<SMTAssembly::NamespaceConstDecl>, typeconsts: List<SMTAssembly::ConstMemberDecl>, ref ctx: Context): CString, CString {
     let nsconstdecls = nsconsts.map<CString>(fn(c) => {
         let cname = SMTNameManager::generateNamespaceConstName(c.ns, c.cname);
         return emitConstDeclarationHelper(cname, c.vtype, c.value.op);
@@ -1888,7 +1888,10 @@ function emitAllFieldAccessFunctions(concepts: List<SMTAssembly::ConceptTypeDecl
 }
 
 function emitAssembly(asm: SMTAssembly::Assembly, trgterr: (|Option<SMTAssembly::InvokeKey>, Nat|)): CString {
-    let constdecls, constimpls = emitConstInfo(asm.nsconsts, asm.typeconsts);
+    var ctx = Context::init(SMTLimits::min_nat_bvsize, SMTLimits::min_int_bvsize
+        , SMTLimits::min_bignat_bvsize, SMTLimits::min_bigint_bvsize, SMTLimits::min_float_bvsize);
+
+    let constdecls, constimpls = emitConstInfo(asm.nsconsts, asm.typeconsts, ref ctx);
     let conststr = CString::join('%n;',
         '#BEGIN ;;--GLOBAL_DECLS--;;',
         constdecls,
