@@ -5,6 +5,7 @@
 declare namespace SMTEmitter {
     using BSQAssembly;
     using SMTAssembly;
+    using SMTLimits;
 }
 
 const s_ignoreErrTrgt: Nat = 0n;

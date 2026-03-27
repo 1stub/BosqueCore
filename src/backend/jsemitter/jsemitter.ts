@@ -2339,7 +2339,7 @@ class JSEmitter {
 		else if(bname === "s_bigint_pow") {
 	        bop = `a ** b`;	
 		}
-        else if(bname === "s_float_power") {
+        else if(bname === "s_float_pow") {
             bop = `Math.pow(a, b)`;
         }
         else if(bname === "s_float_sqrt") {

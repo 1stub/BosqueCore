@@ -1,123 +1,107 @@
 namespace SMTEmitter;
 
-%% NOTE: We could make these one generic entity, but the issue is calling the
-%% `...pow()` method as we need to ensure we have a specific type. Well, maybe
-%% it'll be okay? We could have the update just take in a min, max, and width
-
-%*
-entity SMTNat {
-    field bvsize: Nat;
-    field max: Nat;
-
-    %% We should clarify this, but with my new approach pretty sure we can have
-    %% max nat and max int be different (so no need to sub 1n for sign bit)
-    ref method update(nsz: Nat) 
-        requires nsz > this.bvsize;
-    {
-        ref this[bvsize = nsz];
-        ref this[max = 2n.pow(nsz) - 1n];
-        return;
-    }
-
-    method smtvalidate(v: Nat): Bool {
-        return v <= this.max;
-    }
-}
-
-entity SMTInt {
-    field bvsize: Nat;
-    field min: Int;
-    field max: Int;
-
-    ref method update(nsz: Int) 
-        requires nsz > this.bvsize;
-    {
-        ref this[bvsize = nsz];
-        ref this[max = 2i.pow(nsz - 1i) - 1i];
-        ref this[min = -max];
-        return;
-    }
-    
-    method smtvalidate(v: Int): Bool {
-        return v >= this.min && v <= this.max;
-    }
-}
-
-entity SMTBigNat {
-    field bvsize: Nat;
-    field max: BigNat;
-
-    ref method update(nsz: BigNat) 
-        requires nsz > this.bvsize;
-    {
-        ref this[bvsize = nsz];
-        ref this[max = 2N.pow(nsz) - 1N];
-        return;
-    }
-
-    method smtvalidate(v: BigNat): Bool {
-        return v <= this.max;
-    }
-}
-
-entity SMTBigInt {
-    field bvsize: Nat;
-    field min: BigInt;
-    field max: BigInt;
-
-    ref method update(nsz: BigInt) 
-        requires nsz > this.bvsize;
-    {
-        ref this[bvsize = nsz];
-        ref this[max = 2I.pow(nsz - 1I) - 1I];
-        return;
-    }
-
-    method smtvalidate(v: BigInt): Bool {
-        return v >= this.min && v <= this.max;
-    }
-}
-
-entity SMTFloat {
-    %% I am a little bit suspicious of these bounds here, as them seem to just be
-    %% an approximiation, so we may want to be generous in the ranges we allow then
-    %% just forcefully promote to next width
-    %% ** I found these bounds here: https://stackoverflow.com/a/79865044/21400811 **
-    const f16_min: Float = 65504.0f;
-    const f16_max: Float = -65504.0f;
-    const f32_min: Float = 1.2f * Float::pow(10.0f, -38);
-    const f32_max: Float = 3.4f * Float::pow(10.0f, 38);
-    const f64_min: Float = 2.2f * Float::pow(10.0f, -308);
-    const f64_max: Float = 1.8f * Float::pow(10.0f, 308);
-
-    field bvsize: Nat;
-    field min: Float;
-    field max: Float;
-
-    ref method update(nsz: Nat) 
-        requires nsz > this.bvsize;
-    {
-        ref this[bvsize = nsz];
-        switch(nsz) {
-            | 16n => { ref this[min = f16_min]; ref this[max = f16_max]; }
-            | 32n => { ref this[min = f32_min]; ref this[max = f32_max]; }
-            | 64n => { ref this[min = f64_min]; ref this[max = f64_max]; }
-        }
-    }
-
-    method smtvalidate(v: Float): Bool {
-        return v >= this.min && v <= this.max;
-    }
-}
-
 entity Context {
-    field nat_attrs: SMTNat;
-    field int_attrs: SMTInt;
-    field bignat_attrs: SMTBigNat;
-    field bigint_attrs: SMTBigInt;
-    field float_attrs: SMTFloat;
+	field nat_bvsize: Nat;
+    field int_bvsize: Int;
+	field bignat_bvsize: BigNat;
+	field bigint_bvsize: BigInt;
+	field float_bvsize: Nat;
+
+    field int_min: Int;
+	field bigint_min: BigInt;
+	field float_min: Float;
+
+	field nat_max: Nat;
+    field int_max: Int;
+	field bignat_max: BigNat;
+	field bigint_max: BigInt;
+	field float_max: Float;
+
+	ref method natUpdate(nbvsize: Nat) 
+        requires nbvsize > this.nat_bvsize;
+    {
+        ref this[nat_bvsize = nbvsize];
+        ref this[nat_max = SMTLimits::natMax(nbvsize)];
+        return;
+    }
+
+    ref method intUpdate(nbvsize: Int) 
+        requires nbvsize > this.int_bvsize;
+    {
+		let nmax = SMTLimits::intMax(nbvsize);
+        ref this[int_bvsize = nbvsize];
+        ref this[int_max = nmax];
+        ref this[int_min = -nmax];
+        return;
+    }
+
+    ref method bignatUpdate(nbvsize: BigNat) 
+        requires nbvsize > this.bignat_bvsize;
+    {
+        ref this[bignat_bvsize = nbvsize];
+        ref this[bignat_max = SMTLimits::bignatMax(nbvsize)];
+        return;
+    }
+
+    ref method bigintUpdate(nbvsize: BigInt) 
+        requires nbvsize > this.bigint_bvsize;
+    {
+        ref this[bigint_bvsize = nbvsize];
+        ref this[bigint_max = SMTLimits::bigintMax(nbvsize)];
+        return;
+    }
+
+	ref method floatUpdate(nbvsize: Nat)
+		requires nbvsize > this.float_bvsize;
+    {
+        ref this[float_bvsize = nbvsize];
+		ref this[float_min = SMTLimits::floatMin(nbvsize)]; 
+		ref this[float_max = SMTLimits::floatMax(nbvsize)];
+		return;
+    }
+
+    method natValidate(v: Nat): Bool {
+        return v <= this.nat_max;
+    }
+
+    method intValidate(v: Int): Bool {
+        return v >= this.int_min && v <= this.int_max;
+    }
+
+	method bignatValidate(v: BigNat): Bool {
+		return v <= this.bignat_max;	
+	}
+
+	method bigintValidate(v: BigInt): Bool {
+		return v <= this.bigint_max;	
+	}
+
+	method floatValidate(v: Float): Bool {
+		return v >= this.float_min && v <= this.float_max;	
+	}
+
+	%% Initialize context fields with appropriate values corresponding to bvsizes
+	%% -- TODO: Would be nice to add a requires clause for ensuring bvsz mod 4 == 0
+	function init(nat_bvsize: Nat, int_bvsize: Int, bignat_bvsize: BigNat
+		, bigint_bvsize: BigInt, float_bvsize: Nat
+	): Context 
+		requires nat_bvsize >= 8n && int_bvsize >= 8i && bignat_bvsize >= 8N 
+			&& bigint_bvsize >= 8I && float_bvsize >= 16n;
+	{
+		let nnat_max = SMTLimits::natMax(nat_bvsize);
+		let nint_max = SMTLimits::intMax(int_bvsize);
+		let nbignat_max = SMTLimits::bignatMax(bignat_bvsize);
+		let nbigint_max = SMTLimits::bigintMax(bigint_bvsize);
+		let nfloat_min = SMTLimits::floatMin(float_bvsize);
+		let nfloat_max = SMTLimits::floatMax(float_bvsize);
+
+		return Context{ 
+			nat_bvsize, int_bvsize, bignat_bvsize, bigint_bvsize, float_bvsize
+			, -nint_max, -nbigint_max, nfloat_min, nnat_max, nint_max
+			, nbignat_max, nbigint_max, nfloat_max
+		};
+	}
 }
-*%
 
 namespace SMTNameManager {
     function generateStructConstructorName(tkey: SMTAssembly::TypeKey): CString {

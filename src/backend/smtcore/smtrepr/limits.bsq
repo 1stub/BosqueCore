@@ -1,0 +1,51 @@
+declare namespace SMTLimits;
+
+%% I am a little bit suspicious of these bounds here, as them seem to just be
+%% an approximiation, so we may want to be generous in the ranges we allow then
+%% just forcefully promote to next width
+%% ** I found these bounds here: https://stackoverflow.com/a/79865044/21400811 **
+const f16_min: Float = 65504.0f;
+const f16_max: Float = -65504.0f;
+const f32_min: Float = 1.2f * Float::pow(10.0f, -38.0f);
+const f32_max: Float = 3.4f * Float::pow(10.0f, 38.0f);
+const f64_min: Float = 2.2f * Float::pow(10.0f, -308.0f);
+const f64_max: Float = 1.8f * Float::pow(10.0f, 308.0f);
+
+function floatMin(nbvsize: Nat): Float
+{
+    switch(nbvsize) {
+        | 16n => { return f16_min; }
+        | 32n => { return f32_min; }
+        | 64n => { return f64_min; }
+        | _ => { abort; }
+    }
+}
+
+function natMax(nbvsize: Nat): Nat
+{
+    return 2n.pow(nbvsize) - 1n;	
+}
+
+function intMax(nbvsize: Int): Int
+{
+    return 2i.pow(nbvsize - 1i) - 1i;	
+}
+
+function bignatMax(nbvsize: BigNat): BigNat
+{
+    return 2N.pow(nbvsize) - 1N;
+}
+
+function bigintMax(nbvsize: BigInt): BigInt
+{
+    return 2I.pow(nbvsize - 1I) - 1I;
+}
+
+function floatMax(nbvsize: Nat): Float
+{
+    switch(nbvsize) {
+        | 16n => { return f16_max; }
+        | 32n => { return f32_max; }
+        | 64n => { return f64_max; }
+    }
+}
