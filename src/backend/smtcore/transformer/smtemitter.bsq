@@ -1,108 +1,5 @@
 namespace SMTEmitter;
 
-entity Context {
-	field nat_bvsize: Nat;
-    field int_bvsize: Int;
-	field bignat_bvsize: BigNat;
-	field bigint_bvsize: BigInt;
-	field float_bvsize: Nat;
-
-    field int_min: Int;
-	field bigint_min: BigInt;
-	field float_min: Float;
-
-	field nat_max: Nat;
-    field int_max: Int;
-	field bignat_max: BigNat;
-	field bigint_max: BigInt;
-	field float_max: Float;
-
-	ref method natUpdate(nbvsize: Nat) 
-        requires nbvsize > this.nat_bvsize;
-    {
-        ref this[nat_bvsize = nbvsize];
-        ref this[nat_max = SMTLimits::natMax(nbvsize)];
-        return;
-    }
-
-    ref method intUpdate(nbvsize: Int) 
-        requires nbvsize > this.int_bvsize;
-    {
-		let nmax = SMTLimits::intMax(nbvsize);
-        ref this[int_bvsize = nbvsize];
-        ref this[int_max = nmax];
-        ref this[int_min = -nmax];
-        return;
-    }
-
-    ref method bignatUpdate(nbvsize: BigNat) 
-        requires nbvsize > this.bignat_bvsize;
-    {
-        ref this[bignat_bvsize = nbvsize];
-        ref this[bignat_max = SMTLimits::bignatMax(nbvsize)];
-        return;
-    }
-
-    ref method bigintUpdate(nbvsize: BigInt) 
-        requires nbvsize > this.bigint_bvsize;
-    {
-        ref this[bigint_bvsize = nbvsize];
-        ref this[bigint_max = SMTLimits::bigintMax(nbvsize)];
-        return;
-    }
-
-	ref method floatUpdate(nbvsize: Nat)
-		requires nbvsize > this.float_bvsize;
-    {
-        ref this[float_bvsize = nbvsize];
-		ref this[float_min = SMTLimits::floatMin(nbvsize)]; 
-		ref this[float_max = SMTLimits::floatMax(nbvsize)];
-		return;
-    }
-
-    method natValidate(v: Nat): Bool {
-        return v <= this.nat_max;
-    }
-
-    method intValidate(v: Int): Bool {
-        return v >= this.int_min && v <= this.int_max;
-    }
-
-	method bignatValidate(v: BigNat): Bool {
-		return v <= this.bignat_max;	
-	}
-
-	method bigintValidate(v: BigInt): Bool {
-		return v <= this.bigint_max;	
-	}
-
-	method floatValidate(v: Float): Bool {
-		return v >= this.float_min && v <= this.float_max;	
-	}
-
-	%% Initialize context fields with appropriate values corresponding to bvsizes
-	%% -- TODO: Would be nice to add a requires clause for ensuring bvsz mod 4 == 0
-	function init(nat_bvsize: Nat, int_bvsize: Int, bignat_bvsize: BigNat
-		, bigint_bvsize: BigInt, float_bvsize: Nat
-	): Context 
-		requires nat_bvsize >= 8n && int_bvsize >= 8i && bignat_bvsize >= 8N 
-			&& bigint_bvsize >= 8I && float_bvsize >= 16n;
-	{
-		let nnat_max = SMTLimits::natMax(nat_bvsize);
-		let nint_max = SMTLimits::intMax(int_bvsize);
-		let nbignat_max = SMTLimits::bignatMax(bignat_bvsize);
-		let nbigint_max = SMTLimits::bigintMax(bigint_bvsize);
-		let nfloat_min = SMTLimits::floatMin(float_bvsize);
-		let nfloat_max = SMTLimits::floatMax(float_bvsize);
-
-		return Context{ 
-			nat_bvsize, int_bvsize, bignat_bvsize, bigint_bvsize, float_bvsize
-			, -nint_max, -nbigint_max, nfloat_min, nnat_max, nint_max
-			, nbignat_max, nbigint_max, nfloat_max
-		};
-	}
-}
-
 namespace SMTNameManager {
     function generateStructConstructorName(tkey: SMTAssembly::TypeKey): CString {
         return CString::concat(tkey.value, '-mk');
@@ -198,146 +95,15 @@ function emitResultErrOtherAs(astype: SMTAssembly::TypeKey): CString {
 %% [sign:1][exponent:5][signifigand:10]
 %% (assert (= z (fp #b0 #b00001 #b0000000001)))
 
-%% I think the notion of setting a width to fit our hex values in doesnt really make sense.
-%% We should have a min size (say 8 bits, so two chars) but if we try to make a larger value
-%% there should not be some weird runtime error rather the sucessful creation of the correct
-%% hex value, just its size is too large for what we can represent in a bit vector (which we 
-%% would then detect and recover from by increasing the size of our respctive SMT* primitive)
-
-%*
-function emitLiteralAsBV(s: CString, width: Nat, isfloat=false: Bool): CString 
-    requires width >= 8n && width <= 128n; %% min and max bit widths for all primitives 
-{
-    if(isfloat) { 
+function emitNumericType(s: CString, isfp: Bool): CString {	
+    %% If we have a float we will not have a hex repr 
+    if(isfp) {
         return CString::concat('((_ to_fp 5 11)', SMTNameManager::getFPRoundingMode(), s, ')');
     }
 
-    let hex = s.toHex(width);
-	return CString::concat('#x', hex);
-}
-
-function emitTaggedNumericType(e: SMTAssembly::LiteralSimpleExpression, tag: CString, ref ctx: Context): CString {	
-    let estr = cleanOptionalLeadingPlus(e.value.removeSuffixString(tag));
-    
-    var width: Nat;
-	switch(e.vtype) {
-        | 'Nat'<SMTAssembly::TypeKey>    => { 
-			let lit = Nat::fromCString(estr);
-            if(!ctx.nat_attrs.smtvalidate(lit)) {
-                %% Uhhh how can we figure out the new size without needing a loop...
-                %% I think we are forced to generate the hex value first, count the number
-                %% of chars present (not including '#x'), then multiply that value by 4
-                ref ctx.nat_attrs.update(...); 
-            }
-		}
-        | '@Int'<SMTAssembly::TypeKey>    => { 
-			let lit = Int::fromCString(estr);  
-            if(!ctx.int_attrs.smtvalidate(lit)) {
-                ref ctx.int_attrs.update(...);
-            }
-		}
-        | 'BigNat'<SMTAssembly::TypeKey> => {  
-			let lit = BigNat::fromCString(estr);
-            if(!ctx.bignat_attrs.smtvalidate(lit)) {
-                ref ctx.bignat_attrs.update(...);
-            }
-        }
-        | 'BigInt'<SMTAssembly::TypeKey> => { 
-			let lit = BigInt::fromCString(estr); 
-            if(!ctx.bigint_attrs.smtvalidate(lit)) {
-                ref ctx.bigint_attrs.update(...);
-            }
-        }
-        | 'Float'<SMTAssembly::TypeKey>  => { 
-            let lit = Float::fromCString(estr);
-            if(!ctx.float_attrs.smtvalidate(lit)) {
-                ref ctx.float_attrs.update(...);
-            }
-        }
-	}
-
-	return emitLiteralAsBV(estr, width, tag === 'f');
-}
-*%
-
-%% What would be best is to feed these into some form of context variable that is generated
-%% from main args (fed in through analyze.ts)
-const natwidth: Nat = 8n;
-const maxnat: Nat = 127n; 
-const s_maxnat: CString = '127'; %% Meh
-const natlit_charwidth: Nat = 2n;
-
-const intwidth: Int = 8i;
-const maxint: Int = 127i;
-const s_maxint: CString = '127';
-const minint: Int = -127i;
-const s_minint: CString = '-127';
-
-const bignatwidth: BigNat = 16N;
-const maxbignat: BigNat = 32767N; 
-const s_maxbignat: CString = '32767'; %% Meh
-const bignatlit_charwidth: Nat = 4n;
-
-const bigintwidth: BigInt = 8I;
-const maxbigint: BigInt = 32767I;
-const s_maxbigint: CString = '32767';
-const minbigint: BigInt = -32767I;
-const s_minbigint: CString = '-32767';
-
-%% Whats a good name for max float? We want this value to represent the next number (which would be whole)
-%% after the largest possible value (for easier comparisons)
-%% -- not really sure how to correctly represent these, i just snagged these numbers from wikipedia
-
-%% For Float16
-const maxfloat: Float = 65504.0f;
-const minfloat: Float = -65504.0f;
-const s_maxfloat: CString = '65504.0';
-const s_minfloat: CString = '-65504.0';
-
-%% TODO(?): For now we will use the `to_fp` simplifier to avoid needing to convert sign,
-%% exponent, and signifigand into binary/hex repr and emit explicitly. If performance 
-%% is looking weird we should try with explicit constructors; i.e. (for Float16):
-%% [sign:1][exponent:5][signifigand:10]
-%% (assert (= z (fp #b0 #b00001 #b0000000001)))
-
-function emitLiteralAsBV(s: CString, tag: CString): CString {
-    if(tag === 'f') { 
-        return CString::concat('((_ to_fp 5 11)', SMTNameManager::getFPRoundingMode(), s, ')');
-    }
-
-    let isbig = tag === 'N' || tag === 'I';
-	let hex = if(!isbig) then s.toHex(natlit_charwidth) 
-        else s.toHex(bignatlit_charwidth);
-	return CString::concat('#x', hex);
-}
-
-function emitTaggedNumericType(e: SMTAssembly::LiteralSimpleExpression, tag: CString): CString {	
-    let estr = cleanOptionalLeadingPlus(e.value.removeSuffixString(tag));
-	
-	switch(e.vtype) {
-        | 'Nat'<SMTAssembly::TypeKey>    => { 
-			let lit = Nat::fromCString(estr);
-			validate(lit <= maxnat);
-		}
-        | '@Int'<SMTAssembly::TypeKey>    => { 
-			let lit = Int::fromCString(estr); 
-			validate(lit >= minint && lit <= maxint); 
-		}
-        | 'BigNat'<SMTAssembly::TypeKey> => {  
-			let lit = BigNat::fromCString(estr);
-			validate(lit <= maxbignat);
-        }
-        | 'BigInt'<SMTAssembly::TypeKey> => { 
-			let lit = BigInt::fromCString(estr); 
-			validate(lit >= minbigint && lit <= maxbigint); 
-        }
-        | 'Float'<SMTAssembly::TypeKey>  => { 
-            let lit = Float::fromCString(estr);
-            validate(lit >= minfloat && lit <= maxfloat); 
-        }
-	}
-
-	return emitLiteralAsBV(estr, tag);
+    %% TODO: We need to propogate the new literal sizes we computed and add 
+    %% necessary zeros padding
+	return CString::concat('#x', s);
 }
 
 function emitLiteralNoneExpression(): CString {
@@ -346,12 +112,9 @@ function emitLiteralNoneExpression(): CString {
 
 function emitLiteralSimpleExpression(e: SMTAssembly::LiteralSimpleExpression): CString {
     switch(e.vtype) {
-        | 'Bool'<SMTAssembly::TypeKey>   => { return e.value; }
-        | 'Nat'<SMTAssembly::TypeKey>    => { return emitTaggedNumericType(e, 'n'); }
-        | '@Int'<SMTAssembly::TypeKey>    => { return emitTaggedNumericType(e, 'i'); }
-        | 'BigNat'<SMTAssembly::TypeKey> => { return emitTaggedNumericType(e, 'N'); }
-        | 'BigInt'<SMTAssembly::TypeKey> => { return emitTaggedNumericType(e, 'I'); }
-        | 'Float'<SMTAssembly::TypeKey>  => { return emitTaggedNumericType(e, 'f'); }
+        | 'Bool'<SMTAssembly::TypeKey> =>  { return e.value; }
+        | 'Float'<SMTAssembly::TypeKey> => { return emitNumericType(e.value, true); }
+        | _  =>                            { return emitNumericType(e.value, false); }
     }
 }
 
@@ -1501,7 +1264,7 @@ function emitConstInitializerHelper(cname: CString, vtype: SMTAssembly::ResultTy
 }
 
 %** Return the declarations and definitions as 2 seperate components **%
-function emitConstInfo(nsconsts: List<SMTAssembly::NamespaceConstDecl>, typeconsts: List<SMTAssembly::ConstMemberDecl>, ref ctx: Context): CString, CString {
+function emitConstInfo(nsconsts: List<SMTAssembly::NamespaceConstDecl>, typeconsts: List<SMTAssembly::ConstMemberDecl>): CString, CString {
     let nsconstdecls = nsconsts.map<CString>(fn(c) => {
         let cname = SMTNameManager::generateNamespaceConstName(c.ns, c.cname);
         return emitConstDeclarationHelper(cname, c.vtype, c.value.op);
@@ -1888,10 +1651,7 @@ function emitAllFieldAccessFunctions(concepts: List<SMTAssembly::ConceptTypeDecl
 }
 
 function emitAssembly(asm: SMTAssembly::Assembly, trgterr: (|Option<SMTAssembly::InvokeKey>, Nat|)): CString {
-    var ctx = Context::init(SMTLimits::min_nat_bvsize, SMTLimits::min_int_bvsize
-        , SMTLimits::min_bignat_bvsize, SMTLimits::min_bigint_bvsize, SMTLimits::min_float_bvsize);
-
-    let constdecls, constimpls = emitConstInfo(asm.nsconsts, asm.typeconsts, ref ctx);
+    let constdecls, constimpls = emitConstInfo(asm.nsconsts, asm.typeconsts);
     let conststr = CString::join('%n;',
         '#BEGIN ;;--GLOBAL_DECLS--;;',
         constdecls,
@@ -2024,28 +1784,29 @@ function emitAssembly(asm: SMTAssembly::Assembly, trgterr: (|Option<SMTAssembly:
         '#END ;;--VFIELD_ACCESS--;;'
     );
 
-	let natrange = CString::concat('(declare-const SMV_N_RANGE Nat) (assert (= SMV_N_RANGE ', emitLiteralAsBV(s_maxnat, 'n'), '))');
-    let bvint_min = CString::concat('(declare-const SMV_I_MIN @Int) (assert (= SMV_I_MIN ', emitLiteralAsBV(s_minint, 'i'), '))');
-	let bvint_max = CString::concat('(declare-const SMV_I_MAX @Int) (assert (= SMV_I_MAX ', emitLiteralAsBV(s_maxint, 'i'), '))');   
-	let bignatrange = CString::concat('(declare-const SMV_BN_RANGE BigNat) (assert (= SMV_BN_RANGE ', emitLiteralAsBV(s_maxbignat, 'N'), '))');
-    let bvbigint_min = CString::concat('(declare-const SMV_BI_MIN BigInt) (assert (= SMV_BI_MIN ', emitLiteralAsBV(s_minbigint, 'I'), '))');
-	let bvbigint_max = CString::concat('(declare-const SMV_BI_MAX BigInt) (assert (= SMV_BI_MAX ', emitLiteralAsBV(s_maxbigint, 'I'), '))');
-    let float_min = CString::concat('(declare-const SMV_F_MIN Float) (assert (= SMV_F_MIN ', emitLiteralAsBV(s_minfloat, 'f'), '))');
-    let float_max = CString::concat('(declare-const SMV_F_MAX Float) (assert (= SMV_F_MAX ', emitLiteralAsBV(s_maxfloat, 'f'), '))');
-	let strrange = '(declare-const SMV_STR_LENGTH Int) (assert (= SMV_STR_LENGTH 16))';
-	let ranges   = CString::concat(
+    %% TODO: Need to pack in some new information about our bv widths!
+	let natrange     = CString::concat('(declare-const SMV_N_RANGE Nat)     (assert (= SMV_N_RANGE  ', SMTLimits::unsignedMaxHex(8n), '))');
+    let bvint_min    = CString::concat('(declare-const SMV_I_MIN @Int)      (assert (= SMV_I_MIN    ', SMTLimits::signedMinHex(8n), '))');
+	let bvint_max    = CString::concat('(declare-const SMV_I_MAX @Int)      (assert (= SMV_I_MAX    ', SMTLimits::signedMaxHex(8n), '))');   
+	let bignatrange  = CString::concat('(declare-const SMV_BN_RANGE BigNat) (assert (= SMV_BN_RANGE ', SMTLimits::unsignedMaxHex(8n), '))');
+    let bvbigint_min = CString::concat('(declare-const SMV_BI_MIN BigInt)   (assert (= SMV_BI_MIN   ', SMTLimits::signedMinHex(8n), '))');
+	let bvbigint_max = CString::concat('(declare-const SMV_BI_MAX BigInt)   (assert (= SMV_BI_MAX   ', SMTLimits::signedMaxHex(8n), '))');
+    let float_min    = CString::concat('(declare-const SMV_F_MIN Float)     (assert (= SMV_F_MIN    ', emitNumericType(SMTLimits::f16_min.toCString, true), '))');
+    let float_max    = CString::concat('(declare-const SMV_F_MAX Float)     (assert (= SMV_F_MAX    ', emitNumericType(SMTLimits::f16_max.toCString, true), '))');
+	let strrange     = '(declare-const SMV_STR_LENGTH Int) (assert (= SMV_STR_LENGTH 16))';
+	let ranges = CString::concat(
 		'#BEGIN ;;--SMV_CONSTANTS--;;%n;',
 		CString::join('%n;', natrange, bvint_min, bvint_max, bignatrange, bvbigint_min, bvbigint_max),
         CString::join('%n;', float_min, float_max, strrange),
 		'#END ;;--SMV_CONSTANTS--;;%n;'
 	);
 
-	%% Just incase anything funny needs to happen I'll leave these here
+	%% TODO: We definetly should move these into the formula file, no need to do extra processing
 	let valnone   = '(define-fun @Validate-None ((v None)) Bool true)';
 	let valbool   = '(define-fun @Validate-Bool ((v Bool)) Bool true)';
-	let valnat    = CString::concat('(define-fun @Validate-Nat ((v Nat)) Bool (and (bvule ', emitLiteralAsBV('0', 'n'), ' v) (bvule v SMV_N_RANGE)))');
+	let valnat    = CString::concat('(define-fun @Validate-Nat ((v Nat)) Bool (bvule v SMV_N_RANGE))');
 	let valint    = '(define-fun @Validate-Int ((v @Int)) Bool (and (bvsle SMV_I_MIN v) (bvsle v SMV_I_MAX)))';
-	let valbignat = CString::concat('(define-fun @Validate-BigNat ((v BigNat)) Bool (and (bvule ', emitLiteralAsBV('0', 'N'), ' v) (bvule v SMV_BN_RANGE)))');
+	let valbignat = CString::concat('(define-fun @Validate-BigNat ((v BigNat)) Bool (bvule v SMV_BN_RANGE))');
 	let valbigint = '(define-fun @Validate-BigInt ((v BigInt)) Bool (and (bvsle SMV_BI_MIN v) (bvsle v SMV_BI_MAX)))';
 	let valfloat  = '(define-fun @Validate-Float ((v Float)) Bool (and (fp.leq SMV_F_MIN v) (fp.leq v SMV_F_MAX)))';
 	let valcstr   = '(define-fun @Validate-CString ((v CString)) Bool (and (<= (str.len v) SMV_STR_LENGTH) (str.in.re v (re.* (re.union (str.to.re "\u{9}") (re.range " " "~"))))))';

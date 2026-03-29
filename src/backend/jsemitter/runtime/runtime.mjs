@@ -350,7 +350,7 @@ function _$format(str, ...values) {
 	});
 }
 
-const _$toHex = (str, width) => {
+const _$toHex = (str) => {
     // Assumes in cpp runtime bigint/nat are 128 bits
     const MAX_BIG_INT = 2n**128n - 1n;
     var lit = BigInt(str);
@@ -358,17 +358,7 @@ const _$toHex = (str, width) => {
         lit = MAX_BIG_INT + lit + 1n;
     }
 
-    var res = lit.toString(16);
-    const len = res.length;
-    const nwidth = Number(width);
-    if(len < nwidth) {
-        res = res.padStart(nwidth, '0');
-    }
-    else {
-        res = res.substring(len - nwidth);
-    }
-
-    return res;
+    return lit.toString(16);
 }
 
 export {

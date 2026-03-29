@@ -436,10 +436,8 @@ __internal __typedeclable __keycomparable entity CString {
     }
 
 	%% Convert numeric cstring literal to appropriate hex representation
-	method toHex(width: Nat): CString 
-        requires width > 0n; 
-    {
-		return CStringOps::s_toHex(this, width);	
+	method toHex(): CString {
+		return CStringOps::s_toHex(this);	
 	}
 #endif %% STRIPPED_CORE
 }

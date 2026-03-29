@@ -11,15 +11,40 @@ const f32_max: Float = 3.4f * Float::pow(10.0f, 38.0f);
 const f64_min: Float = 2.2f * Float::pow(10.0f, -308.0f);
 const f64_max: Float = 1.8f * Float::pow(10.0f, 308.0f);
 
-const min_nat_bvsize: Nat = 8n;
-const min_int_bvsize: Int = 8i;
-const min_bignat_bvsize: BigNat = 8N;
-const min_bigint_bvsize: BigInt = 8I;
+const min_bvsize: Nat = 4n;
 const min_float_bvsize: Nat = 16n;
 
-function floatMin(nbvsize: Nat): Float
+function unsignedMaxHex(bvsize: Nat): CString {
+    return Algorithm::while<(|Nat, CString|)>(
+        (|bvsize, ''|),
+        pred(st) => st.0 != 0n,
+        fn(st) => (|st.0 - 4n, st.1.prepend('f')|)
+    ).1;
+}
+
+function signedMinHex(bvsize: Nat): CString {
+    return Algorithm::while<(|Nat, CString|)>(
+        (|bvsize, ''|),
+        pred(st) => st.0 != 0n,
+        fn(st) => if(st.0 - 4n == 0n) 
+            then (|st.0 - 4n, st.1.prepend('8')|) 
+            else (|st.0 - 4n, st.1.prepend('0')|)
+    ).1;
+}
+
+function signedMaxHex(bvsize: Nat): CString {
+    return Algorithm::while<(|Nat, CString|)>(
+        (|bvsize, ''|),
+        pred(st) => st.0 != 0n,
+        fn(st) => if(st.0 - 4n == 0n) 
+            then (|st.0 - 4n, st.1.prepend('7')|)
+            else (|st.0 - 4n, st.1.prepend('f')|)
+    ).1;
+}
+
+function floatMin(bvsize: Nat): Float
 {
-    switch(nbvsize) {
+    switch(bvsize) {
         | 16n => { return f16_min; }
         | 32n => { return f32_min; }
         | 64n => { return f64_min; }
@@ -27,29 +52,9 @@ function floatMin(nbvsize: Nat): Float
     }
 }
 
-function natMax(nbvsize: Nat): Nat
+function floatMax(bvsize: Nat): Float
 {
-    return 2n.pow(nbvsize) - 1n;	
-}
-
-function intMax(nbvsize: Int): Int
-{
-    return 2i.pow(nbvsize - 1i) - 1i;	
-}
-
-function bignatMax(nbvsize: BigNat): BigNat
-{
-    return 2N.pow(nbvsize) - 1N;
-}
-
-function bigintMax(nbvsize: BigInt): BigInt
-{
-    return 2I.pow(nbvsize - 1I) - 1I;
-}
-
-function floatMax(nbvsize: Nat): Float
-{
-    switch(nbvsize) {
+    switch(bvsize) {
         | 16n => { return f16_max; }
         | 32n => { return f32_max; }
         | 64n => { return f64_max; }
