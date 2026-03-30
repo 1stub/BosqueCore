@@ -1784,15 +1784,21 @@ function emitAssembly(asm: SMTAssembly::Assembly, trgterr: (|Option<SMTAssembly:
         '#END ;;--VFIELD_ACCESS--;;'
     );
 
+    %% TODO: Once we support ref context this will not exist!
+    let basewidth = 4n;
+
+    %% Pretty sure we can compute the min/max from our new context
+    let floatwidth = 16n;
+
     %% TODO: Need to pack in some new information about our bv widths!
-	let natrange     = CString::concat('(declare-const SMV_N_RANGE Nat)     (assert (= SMV_N_RANGE  ', SMTLimits::unsignedMaxHex(8n), '))');
-    let bvint_min    = CString::concat('(declare-const SMV_I_MIN @Int)      (assert (= SMV_I_MIN    ', SMTLimits::signedMinHex(8n), '))');
-	let bvint_max    = CString::concat('(declare-const SMV_I_MAX @Int)      (assert (= SMV_I_MAX    ', SMTLimits::signedMaxHex(8n), '))');   
-	let bignatrange  = CString::concat('(declare-const SMV_BN_RANGE BigNat) (assert (= SMV_BN_RANGE ', SMTLimits::unsignedMaxHex(8n), '))');
-    let bvbigint_min = CString::concat('(declare-const SMV_BI_MIN BigInt)   (assert (= SMV_BI_MIN   ', SMTLimits::signedMinHex(8n), '))');
-	let bvbigint_max = CString::concat('(declare-const SMV_BI_MAX BigInt)   (assert (= SMV_BI_MAX   ', SMTLimits::signedMaxHex(8n), '))');
-    let float_min    = CString::concat('(declare-const SMV_F_MIN Float)     (assert (= SMV_F_MIN    ', emitNumericType(SMTLimits::f16_min.toCString, true), '))');
-    let float_max    = CString::concat('(declare-const SMV_F_MAX Float)     (assert (= SMV_F_MAX    ', emitNumericType(SMTLimits::f16_max.toCString, true), '))');
+	let natrange     = CString::concat('(declare-const SMV_N_RANGE Nat)     (assert (= SMV_N_RANGE  ', SMTLimits::unsignedMaxHex(basewidth).prepend('#x'), '))');
+    let bvint_min    = CString::concat('(declare-const SMV_I_MIN @Int)      (assert (= SMV_I_MIN    ', SMTLimits::signedMinHex(basewidth).prepend('#x'), '))');
+	let bvint_max    = CString::concat('(declare-const SMV_I_MAX @Int)      (assert (= SMV_I_MAX    ', SMTLimits::signedMaxHex(basewidth).prepend('#x'), '))');   
+	let bignatrange  = CString::concat('(declare-const SMV_BN_RANGE BigNat) (assert (= SMV_BN_RANGE ', SMTLimits::unsignedMaxHex(basewidth).prepend('#x'), '))');
+    let bvbigint_min = CString::concat('(declare-const SMV_BI_MIN BigInt)   (assert (= SMV_BI_MIN   ', SMTLimits::signedMinHex(basewidth).prepend('#x'), '))');
+	let bvbigint_max = CString::concat('(declare-const SMV_BI_MAX BigInt)   (assert (= SMV_BI_MAX   ', SMTLimits::signedMaxHex(basewidth).prepend('#x'), '))%n;');
+    let float_min    = CString::concat('(declare-const SMV_F_MIN Float)     (assert (= SMV_F_MIN    ', emitNumericType(SMTLimits::f16_min.toCString(), true), '))');
+    let float_max    = CString::concat('(declare-const SMV_F_MAX Float)     (assert (= SMV_F_MAX    ', emitNumericType(SMTLimits::f16_max.toCString(), true), '))');
 	let strrange     = '(declare-const SMV_STR_LENGTH Int) (assert (= SMV_STR_LENGTH 16))';
 	let ranges = CString::concat(
 		'#BEGIN ;;--SMV_CONSTANTS--;;%n;',
@@ -1801,28 +1807,22 @@ function emitAssembly(asm: SMTAssembly::Assembly, trgterr: (|Option<SMTAssembly:
 		'#END ;;--SMV_CONSTANTS--;;%n;'
 	);
 
-	%% TODO: We definetly should move these into the formula file, no need to do extra processing
-	let valnone   = '(define-fun @Validate-None ((v None)) Bool true)';
-	let valbool   = '(define-fun @Validate-Bool ((v Bool)) Bool true)';
-	let valnat    = CString::concat('(define-fun @Validate-Nat ((v Nat)) Bool (bvule v SMV_N_RANGE))');
-	let valint    = '(define-fun @Validate-Int ((v @Int)) Bool (and (bvsle SMV_I_MIN v) (bvsle v SMV_I_MAX)))';
-	let valbignat = CString::concat('(define-fun @Validate-BigNat ((v BigNat)) Bool (bvule v SMV_BN_RANGE))');
-	let valbigint = '(define-fun @Validate-BigInt ((v BigInt)) Bool (and (bvsle SMV_BI_MIN v) (bvsle v SMV_BI_MAX)))';
-	let valfloat  = '(define-fun @Validate-Float ((v Float)) Bool (and (fp.leq SMV_F_MIN v) (fp.leq v SMV_F_MAX)))';
-	let valcstr   = '(define-fun @Validate-CString ((v CString)) Bool (and (<= (str.len v) SMV_STR_LENGTH) (str.in.re v (re.* (re.union (str.to.re "\u{9}") (re.range " " "~"))))))';
-	let valstr    = '(define-fun @Validate-String ((v String)) Bool (<= (str.len v) SMV_STR_LENGTH))';
-	let primvals  = CString::join('%n;',
-		'#BEGIN ;;--VALIDATES--;;%n;', 
-		CString::join('%n;', valnone, valbool, valnat, valint, valbignat, valbigint), 
-		CString::join('%n;', valfloat, valcstr, valstr),
-		'#END ;;--VALIDATES--;;%n;'
-	);
-
     let validates = CString::join('%n;',
         '#BEGIN ;;--VALIDATE_PREDICATES--;;',
         CString::joinAll('%n;', asm.validators.map<CString>(fn(vf) => emitFunctionDecl(vf, trgterr))),
         '#END ;;--VALIDATE_PREDICATES--;;'
     );
 
-    return CString::join('%n;', predecl_str, CString::join('%n;', stddecls, stdcons, termcons), subchecks_str, CString::join('%n;', efuncs, ranges, primvals, validates));
+    let enat =    CString::concat('(define-sort Nat ()    (_ BitVec ', basewidth.toCString(), '))');
+    let eint =    CString::concat('(define-sort @Int ()   (_ BitVec ', basewidth.toCString(), '))');
+    let ebignat = CString::concat('(define-sort BigNat () (_ BitVec ', basewidth.toCString(), '))');
+    let ebigint = CString::concat('(define-sort BigInt () (_ BitVec ', basewidth.toCString(), '))');
+    let efloat =  CString::concat('(define-sort Float ()  Float', floatwidth.toCString(), ')');
+    let primitives = CString::concat(
+        '#BEGIN ;;--PRIMITIVES--;;%n;',
+        CString::join('%n;', enat, eint, ebignat, ebigint, efloat),
+        '#END ;;--PRIMITIVES--;;%n;'
+    );
+
+    return CString::join('%n;', primitives, predecl_str, CString::join('%n;', stddecls, stdcons, termcons), subchecks_str, CString::join('%n;', efuncs, ranges, validates));
 }

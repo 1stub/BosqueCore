@@ -26,15 +26,9 @@
 
 (declare-datatype None ((none)))
 ;;Bool is Bool
-(define-sort Nat () (_ BitVec ;;--NAT_BV_WIDTH--;;))
-
-;; These two comments should differ. Each type should be able to have their own size
-(define-sort @Int () (_ BitVec ;;--NAT_BV_WIDTH--;;))
-(define-sort BigNat () (_ BitVec ;;--BIGNAT_BV_WIDTH--;;))
-(define-sort BigInt () (_ BitVec ;;--BIGNAT_BV_WIDTH--;;))
-(define-sort Float () Float;;--FLOAT_WIDTH--;;)
 (define-sort CString () String)
 ;;String is String
+;;--PRIMITIVES--;;
 
 ;;--ENUM_DECLS--;;
 ;;--TYPEDECL_DECLS--;;
@@ -77,6 +71,14 @@
 
 ;;--SMV_CONSTANTS--;;
 
-;;--VALIDATES--;;
+(define-fun @Validate-None ((v None)) Bool true)
+(define-fun @Validate-Bool ((v Bool)) Bool true)
+(define-fun @Validate-Nat ((v Nat)) Bool (bvule v SMV_N_RANGE))
+(define-fun @Validate-Int ((v @Int)) Bool (and (bvsle SMV_I_MIN v) (bvsle v SMV_I_MAX)))
+(define-fun @Validate-BigNat ((v BigNat)) Bool (bvule v SMV_BN_RANGE))
+(define-fun @Validate-BigInt ((v BigInt)) Bool (and (bvsle SMV_BI_MIN v) (bvsle v SMV_BI_MAX)))
+(define-fun @Validate-Float ((v Float)) Bool (and (fp.leq SMV_F_MIN v) (fp.leq v SMV_F_MAX)))
+(define-fun @Validate-CString ((v CString)) Bool (and (<= (str.len v) SMV_STR_LENGTH) (str.in.re v (re.* (re.union (str.to.re "\u{9}") (re.range " " "~"))))))
+(define-fun @Validate-String ((v String)) Bool (<= (str.len v) SMV_STR_LENGTH))
 
 ;;--VALIDATE_PREDICATES--;;

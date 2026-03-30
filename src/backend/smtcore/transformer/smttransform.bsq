@@ -148,12 +148,7 @@ entity SMTTransformerCtx {
     }
 }
 
-entity SMTTransformer {
-    field assembly: BSQAssembly::Assembly;
-    field callg: BSQToSMTCallGraph;
-    field errinvokes: Map<BSQAssembly::InvokeKey, Bool>;
-    field erranalysis: MayErrorAnalysis;
-
+entity SMTLiterals {
 	field nat_bvsize: Nat;
     field int_bvsize: Nat;
 	field bignat_bvsize: Nat;
@@ -163,15 +158,6 @@ entity SMTTransformer {
     %% Validating floats takes extra love 
 	field float_min: Float;
 	field float_max: Float;
-
-    const nonetype: BSQAssembly::TypeSignature = BSQAssembly::NominalTypeSignature{ BSQAssembly::SourceInfo{0n, 0n, 0n, 0n}, 'None'<BSQAssembly::TypeKey> };
-    const booltype: BSQAssembly::TypeSignature = BSQAssembly::NominalTypeSignature{ BSQAssembly::SourceInfo{0n, 0n, 0n, 0n}, 'Bool'<BSQAssembly::TypeKey> };
-
-    const termtypekey: SMTAssembly::TypeKey = SMTAssembly::TypeKey::from('@Term');
-
-    const vvariable: SMTAssembly::Identifier = SMTAssembly::Identifier::from('v');
-    const smtexplit_true: SMTAssembly::SafeExpression = SMTAssembly::LiteralSimpleExpression{'Bool'<SMTAssembly::TypeKey>, 'true'};
-    const smtexplit_false: SMTAssembly::SafeExpression = SMTAssembly::LiteralSimpleExpression{'Bool'<SMTAssembly::TypeKey>, 'false'};
 
 	ref method floatUpdate(lit: Float) {
         let nbvsize = if(lit > SMTLimits::f32_min && lit < SMTLimits::f32_max) 
@@ -183,9 +169,9 @@ entity SMTTransformer {
 		return;
     }
 
-    function natValidate(ref transformer: SMTTransformer, lit: CString) {
+    ref method natValidate(lit: CString) {
         let size = lit.size();
-        if(size > transformer.nat_bvsize) {
+        if(size > this.nat_bvsize) {
             ref this[nat_bvsize = size * 4n];
         }
 
@@ -228,6 +214,7 @@ entity SMTTransformer {
         return;
 	}
 
+%*
     function inititalize(assembly: BSQAssembly::Assembly, callg: BSQToSMTCallGraph, errinvokes: Map<BSQAssembly::InvokeKey, Bool>): SMTTransformer {
         let erranalysis = MayErrorAnalysis{assembly, callg};
         let floatmin = SMTLimits::floatMin(SMTLimits::min_float_bvsize);
@@ -239,6 +226,23 @@ entity SMTTransformer {
             , floatmin, floatmax
 		};
     }
+*%
+}
+
+entity SMTTransformer {
+    field assembly: BSQAssembly::Assembly;
+    field callg: BSQToSMTCallGraph;
+    field errinvokes: Map<BSQAssembly::InvokeKey, Bool>;
+    field erranalysis: MayErrorAnalysis;
+
+    const nonetype: BSQAssembly::TypeSignature = BSQAssembly::NominalTypeSignature{ BSQAssembly::SourceInfo{0n, 0n, 0n, 0n}, 'None'<BSQAssembly::TypeKey> };
+    const booltype: BSQAssembly::TypeSignature = BSQAssembly::NominalTypeSignature{ BSQAssembly::SourceInfo{0n, 0n, 0n, 0n}, 'Bool'<BSQAssembly::TypeKey> };
+
+    const termtypekey: SMTAssembly::TypeKey = SMTAssembly::TypeKey::from('@Term');
+
+    const vvariable: SMTAssembly::Identifier = SMTAssembly::Identifier::from('v');
+    const smtexplit_true: SMTAssembly::SafeExpression = SMTAssembly::LiteralSimpleExpression{'Bool'<SMTAssembly::TypeKey>, 'true'};
+    const smtexplit_false: SMTAssembly::SafeExpression = SMTAssembly::LiteralSimpleExpression{'Bool'<SMTAssembly::TypeKey>, 'false'};
 
     function isTermSMTTypeKey(tkey: SMTAssembly::TypeKey): Bool {
         return tkey === '@Term'<SMTAssembly::TypeKey>;
@@ -455,35 +459,37 @@ entity SMTTransformer {
         return if(vstr.startsWithString('+')) then vstr.removePrefixString('+') else vstr;
     }
 
+    %% TODO: As we are missing a context variable (passed by ref) we cannot update literals bv sizes yet
     method transformLiteralSimpleExpression(exp: BSQAssembly::LiteralSimpleExpression): SMTAssembly::SafeExpression {
-        let hexlit = SMTTransformer::cleanOptionalLeadingPlus(exp.value.toHex()); 
+        let lit = SMTTransformer::cleanOptionalLeadingPlus(exp.value); 
         let vtype = this.transformStdTypeToSMT(exp.etype);
-        var smtexp: SMTAssembly::SafeExpression;
+        var value: CString;
         switch(vtype) {
-            | 'Bool'<SMTAssembly::TypeKey>   => { ; }
+            | 'Bool'<SMTAssembly::TypeKey>   => { value = exp.value; }
             | 'Nat'<SMTAssembly::TypeKey>    => { 
-                ref this.natValidate(Nat::fromCString(hexlit));
-                smtexp = SMTAssembly::LiteralSimpleExpression{vtype, hexlit.removePrefixString('n')}; 
+                value = lit.removeSuffixString('n').toHex();
+                %% ref ctx.natValidate(value);
             }
             | '@Int'<SMTAssembly::TypeKey>   => { 
-                ref this.intValidate(Int::fromCString(hexlit)); 
-                smtexp = SMTAssembly::LiteralSimpleExpression{vtype, hexlit.removePrefixString('i')};     
+                value = lit.removeSuffixString('i').toHex();
+                %% ref ctx.intValidate(value); 
             }
             | 'BigNat'<SMTAssembly::TypeKey> => { 
-                ref this.bignatValidate(BigNat::fromCString(hexlit)); 
-                smtexp = SMTAssembly::LiteralSimpleExpression{vtype, hexlit.removePrefixString('N')};
+                value = lit.removeSuffixString('N').toHex();
+                %% ref ctx.bignatValidate(value); 
             }
             | 'BigInt'<SMTAssembly::TypeKey> => { 
-                ref this.bigintValidate(BigInt::fromCString(hexlit)); 
-                smtexp = SMTAssembly::LiteralSimpleExpression{vtype, hexlit.removePrefixString('I')};
+                value = lit.removeSuffixString('I').toHex();
+                %% ref ctx.bigintValidate(value); 
             } 
             | 'Float'<SMTAssembly::TypeKey>  => { %% No hex repr for float (at least for now)
-                ref this.floatValidate(Float::fromCString(exp.value)); 
-                smtexp = SMTAssembly::LiteralSimpleExpression{vtype, exp.value.removePrefixString('f')};   
+                value = exp.value.removeSuffixString('f');   
+                %% ref ctx.floatValidate(Float::fromCString(exp.value)); 
             }
             | _ => { abort; }
         }
 
+        let smtexp = SMTAssembly::LiteralSimpleExpression{vtype, value};
         return smtexp;
     }
 
@@ -3182,7 +3188,7 @@ entity SMTTransformer {
     }
 
     function transformAssemblyToSMT(assembly: BSQAssembly::Assembly, callg: BSQToSMTCallGraph, errinvokes: Map<BSQAssembly::InvokeKey, Bool>): SMTAssembly::Assembly {
-        var transformer = SMTTransformer::initialize(assembly, callg, errinvokes); 
+        let transformer = SMTTransformer{ assembly, callg, errinvokes, MayErrorAnalysis{assembly, callg} };
         return transformer.transformAssemblyCodeToSMT();
     }
 
@@ -3247,7 +3253,7 @@ entity SMTTransformer {
     }
 
     function transformAssemblyAsCheckTest(assembly: BSQAssembly::Assembly, callg: BSQToSMTCallGraph, errinvokes: Map<BSQAssembly::InvokeKey, Bool>): SMTAssembly::Assembly, CString {
-        var transformer = SMTTransformer::initialize(assembly, callg, errinvokes);
+        let transformer = SMTTransformer{ assembly, callg, errinvokes, MayErrorAnalysis{assembly, callg} };
         let asmcode = transformer.transformAssemblyCodeToSMT();
     
         let chkikey = transformer.callg.topoorder.find(pred(ikey) => {
@@ -3266,7 +3272,7 @@ entity SMTTransformer {
     }
 
     function transformAssemblyAsErrorTest(assembly: BSQAssembly::Assembly, callg: BSQToSMTCallGraph, errinvokes: Map<BSQAssembly::InvokeKey, Bool>): SMTAssembly::Assembly, CString { 
-        var transformer = SMTTransformer::initialize(assembly, callg, errinvokes);
+        let transformer = SMTTransformer{ assembly, callg, errinvokes, MayErrorAnalysis{assembly, callg} };
         let asmcode = transformer.transformAssemblyCodeToSMT();
     
         let chkikey = transformer.callg.topoorder.find(pred(ikey) => {

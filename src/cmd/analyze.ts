@@ -17,12 +17,6 @@ const bosque_dir: string = path.join(__dirname, "../../../");
 const smt_transform_bin_path = path.join(bosque_dir, "bin/smtemit/SMTEmitter.mjs");
 const smt_runtime_code_path = path.join(bosque_dir, "bin/smtruntime/formula.smt2");
 
-// TODO: We will want to modify the emitted javascript for running the smtemitter
-// to reflect this value (well, if its not the default of 8...)
-const BV_WIDTH: string = "8";
-const BIGBV_WIDTH: string = "16";
-const FLOAT_WIDTH: string = "16";
-
 let fullargs = [...process.argv].slice(2);
 if(fullargs.length === 0) {
     Status.error("No input files specified!\n");
@@ -66,6 +60,7 @@ function processSingleComponent(formula: string, smtcomponents: string, rterm: s
 const smtcomponenttags = [
     ";;--GLOBAL_DECLS--;;",
     ";;--GLOBAL_IMPLS--;;",
+    ";;--PRIMITIVES--;;",
     ";;--PRE_FUNCS--;;",
     ";;--FUNCTION_DECLS--;;",
     ";;--ENUM_DECLS--;;",
@@ -85,7 +80,6 @@ const smtcomponenttags = [
     ";;--SUBTYPE_PREDICATES--;;",
     ";;--VFIELD_ACCESS--;;",
 	";;--SMV_CONSTANTS--;;",
-	";;--VALIDATES--;;",
     ";;--VALIDATE_PREDICATES--;;"
 ];
 
@@ -107,10 +101,6 @@ function generateFormulaFile(smtcomponents: string, outname: string) {
         const rterm = smtcomponenttags[i];
         formula = processSingleComponent(formula, smtcomponents, rterm);
     }
-
-	formula = formula.replace(/;;--BV_WIDTH--;;/g, BV_WIDTH);
-	formula = formula.replace(/;;--BIGBV_WIDTH--;;/g, BIGBV_WIDTH);
-	formula = formula.replace(/;;--FLOAT_WIDTH--;;/g, FLOAT_WIDTH);
 
     Status.output("    Writing SMT Formula File...\n");
     try {
