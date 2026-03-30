@@ -358,7 +358,16 @@ const _$toHex = (str) => {
         lit = MAX_BIG_INT + lit + 1n;
     }
 
-    return lit.toString(16);
+    var hex = lit.toString(16);
+    if(lit < 0n) {
+        // Remove leading excessive 1's
+        // Do we need to find msb thats a 1 then check if we lie on a multipe of 4?
+        // -- if we are on a multiple of 4 then we need to use an extra character to represent the sign
+        //    so no magnitude is lost
+        // Basically the question is how do we represent negative numbers without loss of information in the least # of bits 
+    }
+
+    return hex;
 }
 
 export {
