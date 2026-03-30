@@ -11,35 +11,22 @@ const f32_max: Float = 3.4f * Float::pow(10.0f, 38.0f);
 const f64_min: Float = 2.2f * Float::pow(10.0f, -308.0f);
 const f64_max: Float = 1.8f * Float::pow(10.0f, 308.0f);
 
-const min_bvsize: Nat = 16n;
+const min_bvsize: Nat = 8n;
 const min_float_bvsize: Nat = 16n;
 
-function unsignedMaxHex(bvsize: Nat): CString {
-    return Algorithm::while<(|Nat, CString|)>(
-        (|bvsize, ''|),
-        pred(st) => st.0 != 0n,
-        fn(st) => (|st.0 - 4n, st.1.prepend('f')|)
-    ).1;
+%% HMMM should we conver these to bigint/nat? from the nbits
+function numericMinHex(nbits: Nat): CString 
+{
+    let bi_nbits = nbits.toBigInt();
+    let min = 2I.pow(bi_nbits - 2I) + 1I;
+    return min.toCString().toHex();
 }
 
-function signedMinHex(bvsize: Nat): CString {
-    return Algorithm::while<(|Nat, CString|)>(
-        (|bvsize, ''|),
-        pred(st) => st.0 != 0n,
-        fn(st) => if(st.0 - 4n == 0n) 
-            then (|st.0 - 4n, st.1.prepend('8')|) 
-            else (|st.0 - 4n, st.1.prepend('0')|)
-    ).1;
-}
-
-function signedMaxHex(bvsize: Nat): CString {
-    return Algorithm::while<(|Nat, CString|)>(
-        (|bvsize, ''|),
-        pred(st) => st.0 != 0n,
-        fn(st) => if(st.0 - 4n == 0n) 
-            then (|st.0 - 4n, st.1.prepend('7')|)
-            else (|st.0 - 4n, st.1.prepend('f')|)
-    ).1;
+function numericMaxHex(nbits: Nat): CString 
+{
+    let bn_nbits = nbits.toBigNat();
+    let max = 2N.pow(bn_nbits - 2N) - 1N;
+    return max.toCString().toHex();
 }
 
 function floatMin(bvsize: Nat): Float

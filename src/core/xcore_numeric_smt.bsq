@@ -7,6 +7,8 @@ namespace NumericOps {
     function s_natToCString(v: Nat): CString = s_nat_to_cstring;
     function s_natFromCString(str: CString): Nat = s_nat_from_cstring;
     function s_natPow(a: Nat, b: Nat): Nat = s_nat_pow;
+    function s_natToBigNat(a: Nat): BigNat = s_nat_to_bignat;
+    function s_natToInt(a: Nat): Int = s_nat_to_int;
 
     function s_intToCString(v: Int): CString = s_int_to_cstring;
     function s_intFromCString(str: CString): Int = s_int_from_cstring;
@@ -15,6 +17,7 @@ namespace NumericOps {
     function s_bignatToCString(v: BigNat): CString = s_bignat_to_cstring;
     function s_bignatFromCString(str: CString): BigNat = s_bignat_from_cstring;
     function s_bignatPow(a: BigNat, b: BigNat): BigNat = s_bignat_pow;
+    function s_bigNatToBigInt(a: BigNat): BigInt = s_bignat_to_bigint;
 
     function s_bigintToCString(v: BigInt): CString = s_bigint_to_cstring;
     function s_bigintFromCString(str: CString): BigInt = s_bigint_from_cstring;

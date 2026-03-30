@@ -97,6 +97,7 @@ function extractSingleComponent(smtcomponents: string, rterm: string): string {
 const smtcomponenttags = [
     ";;--GLOBAL_DECLS--;;",
     ";;--GLOBAL_IMPLS--;;",
+    ";;--PRIMITIVES--;;",
     ";;--PRE_FUNCS--;;",
     ";;--FUNCTION_DECLS--;;",
     ";;--ENUM_DECLS--;;",
@@ -115,6 +116,7 @@ const smtcomponenttags = [
     ";;--DATATYPE_TERM_CONSTRUCTORS--;;",
     ";;--SUBTYPE_PREDICATES--;;",
     ";;--VFIELD_ACCESS--;;",
+	";;--SMV_CONSTANTS--;;",
     ";;--VALIDATE_PREDICATES--;;"
 ];
 

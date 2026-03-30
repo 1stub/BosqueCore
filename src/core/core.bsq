@@ -30,6 +30,10 @@ __internal __typedeclable __keycomparable __numeric entity Nat {
     const zero: Nat = 0n;
     const one: Nat = 1n;
 
+    method toBigNat(): BigNat { return NumericOps::s_natToBigNat(this); }
+    method toInt(): Int { return NumericOps::s_natToInt(this); }
+    method toBigInt(): BigInt { return NumericOps::s_bigNatToBigInt(NumericOps::s_natToBigNat(this)); }
+
     method toCString(): CString {
         return NumericOps::s_natToCString(this);
     }
@@ -439,6 +443,14 @@ __internal __typedeclable __keycomparable entity CString {
 	method toHex(): CString {
 		return CStringOps::s_toHex(this);	
 	}
+
+    method padStart(length: Nat, fillstr: CString): CString {
+        return Algorithm::while<(|Nat, CString|)>(
+            (|this.size(), this|),
+            pred(st) => st.0 < length,
+            fn(st) => (|st.0 + 1n, st.1.prepend(fillstr)|)
+        ).1;
+    }
 #endif %% STRIPPED_CORE
 }
 

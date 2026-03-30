@@ -2312,6 +2312,12 @@ class JSEmitter {
 		else if(bname === "s_nat_pow") {
 	        bop = `a ** b`;	
 		}
+        else if(bname === "s_nat_to_bignat") {
+            bop = "a";
+        }
+        else if(bname === "s_nat_to_int") {
+            bop = "a";
+        }
         else if(bname === "s_int_to_cstring") {
             bop = `v.toString()`;
         }
@@ -2330,6 +2336,9 @@ class JSEmitter {
 		else if(bname === "s_bignat_pow") {
 	        bop = `a ** b`;	
 		}
+        else if(bname === "s_bignat_to_bigint") {
+            bop = "a";
+        }
         else if(bname === "s_bigint_to_cstring") {
             bop = `v.toString()`;
         }
