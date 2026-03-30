@@ -351,23 +351,23 @@ function _$format(str, ...values) {
 }
 
 const _$toHex = (str) => {
-    // Assumes in cpp runtime bigint/nat are 128 bits
-    const MAX_BIG_INT = 2n**128n - 1n;
-    var lit = BigInt(str);
+    const lit = BigInt(str);
+    const lit_hex = lit.toString(16);
     if(lit < 0n) {
-        lit = MAX_BIG_INT + lit + 1n;
+        // Assumes in cpp runtime bigint/nat are 128 bits
+        const MAX_BIG_INT = 2n**128n - 1n;
+        const twocmpl = MAX_BIG_INT + lit + 1n;
+        let twocmpl_hex = twocmpl.toString(16);
+        
+        // If msb of the unsigned repr is set we need an extra hex character for sign bit
+        const twocmpl_size = lit_hex.charAt(0) > '7' 
+            ? lit_hex.length + 1 
+            : lit_hex.length; 
+
+        return twocmpl_hex.substring(twocmpl_hex.length - twocmpl_size);
     }
 
-    var hex = lit.toString(16);
-    if(lit < 0n) {
-        // Remove leading excessive 1's
-        // Do we need to find msb thats a 1 then check if we lie on a multipe of 4?
-        // -- if we are on a multiple of 4 then we need to use an extra character to represent the sign
-        //    so no magnitude is lost
-        // Basically the question is how do we represent negative numbers without loss of information in the least # of bits 
-    }
-
-    return hex;
+    return lit_hex;
 }
 
 export {
