@@ -1790,16 +1790,12 @@ function emitAssembly(asm: SMTAssembly::Assembly, trgterr: (|Option<SMTAssembly:
     let bignumeric_bvsize = SMTLimits::min_bvsize;
     let float_bvsize = SMTLimits::min_float_bvsize;
 
-    let enumeric_min = SMTLimits::numericMinHex(numeric_bvsize);
-    let ebignumeric_min = SMTLimits::numericMinHex(bignumeric_bvsize);
+    let enumeric_min = SMTLimits::numericMinHex(numeric_bvsize).prepend('#x');
+    let ebignumeric_min = SMTLimits::numericMinHex(bignumeric_bvsize).prepend('#x');
     let efloat_min = emitNumericType(SMTLimits::floatMin(float_bvsize).toCString(), true, true);
-    let enumeric_max = SMTLimits::numericMaxHex(numeric_bvsize);
-    let ebignumeric_max = SMTLimits::numericMaxHex(bignumeric_bvsize);
+    let enumeric_max = SMTLimits::numericMaxHex(numeric_bvsize).prepend('#x');
+    let ebignumeric_max = SMTLimits::numericMaxHex(bignumeric_bvsize).prepend('#x');
     let efloat_max = emitNumericType(SMTLimits::floatMax(float_bvsize).toCString(), true, false);
-
-    %%
-    %% TODO: Something is not quite right with the emission of these bounds
-    %%
 
 	let natrange     = CString::concat('(declare-const SMV_N_RANGE Nat)     (assert (= SMV_N_RANGE  ', enumeric_max, '))');
     let bvint_min    = CString::concat('(declare-const SMV_I_MIN @Int)      (assert (= SMV_I_MIN    ', enumeric_min, '))');

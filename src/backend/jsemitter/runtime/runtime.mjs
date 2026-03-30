@@ -354,8 +354,12 @@ const _$toHex = (str) => {
     // Assumes in cpp runtime bigint/nat are 128 bits
     const lit = BigInt(str);
     var hex_lit = lit.toString(16);
+    if(hex_lit.startsWith('-')) {
+        hex_lit = hex_lit.replace("-", "");
+    }
 
     // Two most msbs are reserved for overflow and sign
+    // (if unsigned repr needs these bits we need an extra character)
     const len = hex_lit.charAt(0) > '3'
         ? hex_lit.length + 1
         : hex_lit.length;
@@ -363,7 +367,7 @@ const _$toHex = (str) => {
     if(lit < 0n) {
         const MAX_BIG_INT = 2n**128n - 1n;
         const twocmpl_lit = MAX_BIG_INT + lit + 1n; 
-        hex_lit = twocmpl_lit.toString();
+        hex_lit = twocmpl_lit.toString(16);
     }
 
     return len > hex_lit.length

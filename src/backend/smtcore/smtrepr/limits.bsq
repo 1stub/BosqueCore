@@ -14,11 +14,10 @@ const f64_max: Float = 1.8f * Float::pow(10.0f, 308.0f);
 const min_bvsize: Nat = 8n;
 const min_float_bvsize: Nat = 16n;
 
-%% HMMM should we conver these to bigint/nat? from the nbits
 function numericMinHex(nbits: Nat): CString 
 {
     let bi_nbits = nbits.toBigInt();
-    let min = 2I.pow(bi_nbits - 2I) + 1I;
+    let min = -(2I.pow(bi_nbits - 2I) - 1I);
     return min.toCString().toHex();
 }
 

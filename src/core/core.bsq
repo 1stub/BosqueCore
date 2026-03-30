@@ -30,9 +30,17 @@ __internal __typedeclable __keycomparable __numeric entity Nat {
     const zero: Nat = 0n;
     const one: Nat = 1n;
 
-    method toBigNat(): BigNat { return NumericOps::s_natToBigNat(this); }
-    method toInt(): Int { return NumericOps::s_natToInt(this); }
-    method toBigInt(): BigInt { return NumericOps::s_bigNatToBigInt(NumericOps::s_natToBigNat(this)); }
+    method toBigNat(): BigNat { 
+        return NumericOps::s_natToBigNat(this); 
+    }
+
+    method toInt(): Int { 
+        return NumericOps::s_natToInt(this); 
+    }
+
+    method toBigInt(): BigInt { 
+        return NumericOps::s_bigNatToBigInt(NumericOps::s_natToBigNat(this)); 
+    }
 
     method toCString(): CString {
         return NumericOps::s_natToCString(this);
