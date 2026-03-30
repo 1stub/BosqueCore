@@ -351,23 +351,24 @@ function _$format(str, ...values) {
 }
 
 const _$toHex = (str) => {
+    // Assumes in cpp runtime bigint/nat are 128 bits
     const lit = BigInt(str);
-    const lit_hex = lit.toString(16);
-    if(lit < 0n) {
-        // Assumes in cpp runtime bigint/nat are 128 bits
-        const MAX_BIG_INT = 2n**128n - 1n;
-        const twocmpl = MAX_BIG_INT + lit + 1n;
-        let twocmpl_hex = twocmpl.toString(16);
-        
-        // If msb of the unsigned repr is set we need an extra hex character for sign bit
-        const twocmpl_size = lit_hex.charAt(0) > '7' 
-            ? lit_hex.length + 1 
-            : lit_hex.length; 
+    var hex_lit = lit.toString(16);
 
-        return twocmpl_hex.substring(twocmpl_hex.length - twocmpl_size);
+    // Two most msbs are reserved for overflow and sign
+    const len = hex_lit.charAt(0) > '3'
+        ? hex_lit.length + 1
+        : hex_lit.length;
+
+    if(lit < 0n) {
+        const MAX_BIG_INT = 2n**128n - 1n;
+        const twocmpl_lit = MAX_BIG_INT + lit + 1n; 
+        hex_lit = twocmpl_lit.toString();
     }
 
-    return lit_hex;
+    return len > hex_lit.length
+        ? hex_lit.padStart(len, "0")
+        : hex_lit.substring(hex_lit.length - len);
 }
 
 export {

@@ -12,6 +12,7 @@ of
 | LiteralSimpleExpression {
     field vtype: TypeKey;
     field value: CString;
+    field isneg: Bool;
 }
 | LiteralCCharExpression {
     field value: CString;

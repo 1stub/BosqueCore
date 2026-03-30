@@ -95,15 +95,23 @@ function emitResultErrOtherAs(astype: SMTAssembly::TypeKey): CString {
 %% [sign:1][exponent:5][signifigand:10]
 %% (assert (= z (fp #b0 #b00001 #b0000000001)))
 
-function emitNumericType(s: CString, isfp: Bool): CString {	
+function emitNumericType(s: CString, isfp: Bool, isneg: Bool): CString {	
     %% If we have a float we will not have a hex repr 
     if(isfp) {
         return CString::concat('((_ to_fp 5 11)', SMTNameManager::getFPRoundingMode(), s, ')');
     }
 
-    %% TODO: We need to propogate the new literal sizes we computed and add 
-    %% necessary zeros padding
-	return CString::concat('#x', s);
+    %% Sign Extend
+    let size = s.size();
+    let extend = Algorithm::while<(|Nat, CString|)>(
+        (|s.size(), s|),
+        pred(st) => st.0 < SMTLimits::min_bvsize // 4n,
+        fn(st) => (|st.0 + 1n, if(isneg) 
+            then st.1.prepend('f') 
+            else st.1.prepend('0')|)
+    ).1;
+
+	return extend.prepend('#x');
 }
 
 function emitLiteralNoneExpression(): CString {
@@ -113,8 +121,8 @@ function emitLiteralNoneExpression(): CString {
 function emitLiteralSimpleExpression(e: SMTAssembly::LiteralSimpleExpression): CString {
     switch(e.vtype) {
         | 'Bool'<SMTAssembly::TypeKey> =>  { return e.value; }
-        | 'Float'<SMTAssembly::TypeKey> => { return emitNumericType(e.value, true); }
-        | _  =>                            { return emitNumericType(e.value, false); }
+        | 'Float'<SMTAssembly::TypeKey> => { return emitNumericType(e.value, true, e.isneg); }
+        | _  =>                            { return emitNumericType(e.value, false, e.isneg); }
     }
 }
 
@@ -1785,11 +1793,12 @@ function emitAssembly(asm: SMTAssembly::Assembly, trgterr: (|Option<SMTAssembly:
     );
 
     %% TODO: Once we support ref context this will not exist!
-    let basewidth = 4n;
+    let basewidth = SMTLimits::min_bvsize;
 
     %% Pretty sure we can compute the min/max from our new context
     let floatwidth = 16n;
 
+    %% TODO: Should use he emitliteral function here, not do it manually with the unsignedmax stuff
     %% TODO: Need to pack in some new information about our bv widths!
 	let natrange     = CString::concat('(declare-const SMV_N_RANGE Nat)     (assert (= SMV_N_RANGE  ', SMTLimits::unsignedMaxHex(basewidth).prepend('#x'), '))');
     let bvint_min    = CString::concat('(declare-const SMV_I_MIN @Int)      (assert (= SMV_I_MIN    ', SMTLimits::signedMinHex(basewidth).prepend('#x'), '))');
@@ -1797,8 +1806,8 @@ function emitAssembly(asm: SMTAssembly::Assembly, trgterr: (|Option<SMTAssembly:
 	let bignatrange  = CString::concat('(declare-const SMV_BN_RANGE BigNat) (assert (= SMV_BN_RANGE ', SMTLimits::unsignedMaxHex(basewidth).prepend('#x'), '))');
     let bvbigint_min = CString::concat('(declare-const SMV_BI_MIN BigInt)   (assert (= SMV_BI_MIN   ', SMTLimits::signedMinHex(basewidth).prepend('#x'), '))');
 	let bvbigint_max = CString::concat('(declare-const SMV_BI_MAX BigInt)   (assert (= SMV_BI_MAX   ', SMTLimits::signedMaxHex(basewidth).prepend('#x'), '))%n;');
-    let float_min    = CString::concat('(declare-const SMV_F_MIN Float)     (assert (= SMV_F_MIN    ', emitNumericType(SMTLimits::f16_min.toCString(), true), '))');
-    let float_max    = CString::concat('(declare-const SMV_F_MAX Float)     (assert (= SMV_F_MAX    ', emitNumericType(SMTLimits::f16_max.toCString(), true), '))');
+    let float_min    = CString::concat('(declare-const SMV_F_MIN Float)     (assert (= SMV_F_MIN    ', emitNumericType(SMTLimits::f16_min.toCString(), true, true), '))');
+    let float_max    = CString::concat('(declare-const SMV_F_MAX Float)     (assert (= SMV_F_MAX    ', emitNumericType(SMTLimits::f16_max.toCString(), true, false), '))');
 	let strrange     = '(declare-const SMV_STR_LENGTH Int) (assert (= SMV_STR_LENGTH 16))';
 	let ranges = CString::concat(
 		'#BEGIN ;;--SMV_CONSTANTS--;;%n;',

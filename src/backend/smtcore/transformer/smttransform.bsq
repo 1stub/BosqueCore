@@ -241,8 +241,8 @@ entity SMTTransformer {
     const termtypekey: SMTAssembly::TypeKey = SMTAssembly::TypeKey::from('@Term');
 
     const vvariable: SMTAssembly::Identifier = SMTAssembly::Identifier::from('v');
-    const smtexplit_true: SMTAssembly::SafeExpression = SMTAssembly::LiteralSimpleExpression{'Bool'<SMTAssembly::TypeKey>, 'true'};
-    const smtexplit_false: SMTAssembly::SafeExpression = SMTAssembly::LiteralSimpleExpression{'Bool'<SMTAssembly::TypeKey>, 'false'};
+    const smtexplit_true: SMTAssembly::SafeExpression = SMTAssembly::LiteralSimpleExpression{'Bool'<SMTAssembly::TypeKey>, 'true', false};
+    const smtexplit_false: SMTAssembly::SafeExpression = SMTAssembly::LiteralSimpleExpression{'Bool'<SMTAssembly::TypeKey>, 'false', false};
 
     function isTermSMTTypeKey(tkey: SMTAssembly::TypeKey): Bool {
         return tkey === '@Term'<SMTAssembly::TypeKey>;
@@ -489,7 +489,7 @@ entity SMTTransformer {
             | _ => { abort; }
         }
 
-        let smtexp = SMTAssembly::LiteralSimpleExpression{vtype, value};
+        let smtexp = SMTAssembly::LiteralSimpleExpression{vtype, value, exp.value.startsWithString('-')};
         return smtexp;
     }
 
@@ -1182,7 +1182,7 @@ entity SMTTransformer {
 
     method transformPostfixBoolConstant(op: BSQAssembly::PostfixBoolConstant, ctx: SMTTransformerCtx, bexp: SMTExpTransformResult): SMTTransformerCtx, SMTExpTransformResult {
         let onarg, nctx, obinds = this.unpackSingleResultErrors(bexp, ctx);
-        let constop = SMTAssembly::LiteralSimpleExpression{'Bool'<SMTAssembly::TypeKey>, if(op.value) then 'true' else 'false'};
+        let constop = SMTAssembly::LiteralSimpleExpression{'Bool'<SMTAssembly::TypeKey>, if(op.value) then 'true' else 'false', false};
 
         return nctx, this.wrapOperationResult(SMTTransformer::booltype, constop, obinds);
     }
@@ -1436,31 +1436,31 @@ entity SMTTransformer {
         match(exp)@ {
             | BSQAssembly::BinLogicAndExpression => {
                 if(rrhs)@<SafeResult> {
-                    let ite = SMTAssembly::IfThenElseSafeExpression{ntexp, $rrhs.exp, SMTAssembly::LiteralSimpleExpression{'Bool'<SMTAssembly::TypeKey>, 'false'}};
+                    let ite = SMTAssembly::IfThenElseSafeExpression{ntexp, $rrhs.exp, SMTAssembly::LiteralSimpleExpression{'Bool'<SMTAssembly::TypeKey>, 'false', false}};
                     return rctx, this.wrapOperationResult(exp.etype, ite, cobinds);
                 }
                 else {
-                    let ite = SMTAssembly::IfThenElseExpression{ntexp, $rrhs.exp, SMTAssembly::WrapIntoResultExpression{this.transformStdTypeToSMT(exp.etype), SMTAssembly::LiteralSimpleExpression{'Bool'<SMTAssembly::TypeKey>, 'false'}}};
+                    let ite = SMTAssembly::IfThenElseExpression{ntexp, $rrhs.exp, SMTAssembly::WrapIntoResultExpression{this.transformStdTypeToSMT(exp.etype), SMTAssembly::LiteralSimpleExpression{'Bool'<SMTAssembly::TypeKey>, 'false', false}}};
                     return rctx, this.wrapOperationResultWErr(exp.etype, ite, cobinds);
                 }
             }
             | BSQAssembly::BinLogicOrExpression => {
                 if(rrhs)@<SafeResult> {
-                    let ite = SMTAssembly::IfThenElseSafeExpression{ntexp, SMTAssembly::LiteralSimpleExpression{'Bool'<SMTAssembly::TypeKey>, 'true'}, $rrhs.exp};
+                    let ite = SMTAssembly::IfThenElseSafeExpression{ntexp, SMTAssembly::LiteralSimpleExpression{'Bool'<SMTAssembly::TypeKey>, 'true', false}, $rrhs.exp};
                     return rctx, this.wrapOperationResult(exp.etype, ite, cobinds);
                 }
                 else {
-                    let ite = SMTAssembly::IfThenElseExpression{ntexp, SMTAssembly::WrapIntoResultExpression{this.transformStdTypeToSMT(exp.etype), SMTAssembly::LiteralSimpleExpression{'Bool'<SMTAssembly::TypeKey>, 'true'}}, $rrhs.exp};
+                    let ite = SMTAssembly::IfThenElseExpression{ntexp, SMTAssembly::WrapIntoResultExpression{this.transformStdTypeToSMT(exp.etype), SMTAssembly::LiteralSimpleExpression{'Bool'<SMTAssembly::TypeKey>, 'true', false}}, $rrhs.exp};
                     return rctx, this.wrapOperationResultWErr(exp.etype, ite, cobinds);
                 }
             }
             | BSQAssembly::BinLogicImpliesExpression => {
                 if(rrhs)@<SafeResult> {
-                    let ite = SMTAssembly::IfThenElseSafeExpression{ntexp, $rrhs.exp, SMTAssembly::LiteralSimpleExpression{'Bool'<SMTAssembly::TypeKey>, 'true'}};
+                    let ite = SMTAssembly::IfThenElseSafeExpression{ntexp, $rrhs.exp, SMTAssembly::LiteralSimpleExpression{'Bool'<SMTAssembly::TypeKey>, 'true', false}};
                     return rctx, this.wrapOperationResult(exp.etype, ite, cobinds);
                 }
                 else {
-                    let ite = SMTAssembly::IfThenElseExpression{ntexp, $rrhs.exp, SMTAssembly::WrapIntoResultExpression{this.transformStdTypeToSMT(exp.etype), SMTAssembly::LiteralSimpleExpression{'Bool'<SMTAssembly::TypeKey>, 'true'}}};
+                    let ite = SMTAssembly::IfThenElseExpression{ntexp, $rrhs.exp, SMTAssembly::WrapIntoResultExpression{this.transformStdTypeToSMT(exp.etype), SMTAssembly::LiteralSimpleExpression{'Bool'<SMTAssembly::TypeKey>, 'true', false}}};
                     return rctx, this.wrapOperationResultWErr(exp.etype, ite, cobinds);
                 }
             }
