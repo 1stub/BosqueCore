@@ -155,10 +155,8 @@ entity SMTTransformerCtx {
 }
 
 entity SMTLiterals {
-	field nat_bvsize: Nat;
-    field int_bvsize: Nat;
-	field bignat_bvsize: Nat;
-	field bigint_bvsize: Nat;
+    field numeric_bvsize: Nat;
+    field bignumeric_bvsize: Nat;
 	field float_bvsize: Nat;
 
     %% Validating floats takes extra love 
@@ -175,39 +173,45 @@ entity SMTLiterals {
 		return;
     }
 
-    ref method natValidate(lit: CString) {
+    ref method validateNumeric(lit: CString) {
         let size = lit.size();
-        if(size > this.nat_bvsize) {
-            ref this[nat_bvsize = size * 4n];
+        if(size > this.numeric_bvsize) {
+            ref this[numeric_bvsize = size * 4n];
         }
 
+        if(this.numeric_bvsize > this.bignumeric_bvsize) {
+            ref this[bignumeric_bvsize = this.numeric_bvsize];
+        }
+
+        return;
+    }
+
+    ref method validateBigNumeric(lit: CString) {
+        let size = lit.size();
+        if(size > this.bignumeric_bvsize) {
+            ref this[bignumeric_bvsize = size * 4n];
+        }
+
+        return;
+    }
+
+    ref method natValidate(lit: CString) {
+        ref this.validateNumeric(lit);
         return;
     }
 
     ref method intValidate(lit: CString) {
-        let size = lit.size();
-        if(size > this.int_bvsize) {
-            ref this[int_bvsize = size * 4n];
-        }
-
+        ref this.validateNumeric(lit);
         return;
     }
 
 	ref method bignatValidate(lit: CString) {
-        let size = lit.size();
-        if(size > this.bignat_bvsize) {
-            ref this[bignat_bvsize = size * 4n];
-        }
-
+        ref this.validateBigNumeric(lit);
         return;
 	}
 
 	ref method bigintValidate(lit: CString) {
-        let size = lit.size();
-        if(size > this.bigint_bvsize) {
-            ref this[bigint_bvsize = size * 4n];
-        }
-
+        ref this.validateBigNumeric(lit);
         return;
 	}
 
@@ -219,20 +223,6 @@ entity SMTLiterals {
 
         return;
 	}
-
-%*
-    function inititalize(assembly: BSQAssembly::Assembly, callg: BSQToSMTCallGraph, errinvokes: Map<BSQAssembly::InvokeKey, Bool>): SMTTransformer {
-        let erranalysis = MayErrorAnalysis{assembly, callg};
-        let floatmin = SMTLimits::floatMin(SMTLimits::min_float_bvsize);
-        let floatmax = SMTLimits::floatMax(SMTLimits::min_float_bvsize);
-		return SMTTransformer { 
-            assembly, callg, errinvokes, erranalysis
-            , SMTLimits::min_bvsize, SMTLimits::min_bvsize, SMTLimits::min_bvsize
-            , SMTLimits::min_bvsize, SMTLimits::min_float_bvsize
-            , floatmin, floatmax
-		};
-    }
-*%
 }
 
 entity SMTTransformer {
@@ -468,34 +458,43 @@ entity SMTTransformer {
     %% TODO: As we are missing a context variable (passed by ref) we cannot update literals bv sizes yet
     method transformLiteralSimpleExpression(exp: BSQAssembly::LiteralSimpleExpression): SMTAssembly::SafeExpression {
         let lit = SMTTransformer::cleanOptionalLeadingPlus(exp.value); 
-        let vtype = this.transformStdTypeToSMT(exp.etype);
+        let isneg = exp.value.startsWithString('-');
         var value: CString;
-        switch(vtype) {
-            | 'Bool'<SMTAssembly::TypeKey>   => { value = exp.value; }
-            | 'Nat'<SMTAssembly::TypeKey>    => { 
+        switch(exp.etype.tkeystr) {
+            | 'Bool'<BSQAssembly::TypeKey>   => { value = exp.value; }
+            | 'Nat'<BSQAssembly::TypeKey>    => { 
                 value = lit.removeSuffixString('n').toHex();
+                validate(value.size() <= SMTLimits::min_bvsize // 4n);
                 %% ref ctx.natValidate(value);
             }
-            | '@Int'<SMTAssembly::TypeKey>   => { 
+            | 'Int'<BSQAssembly::TypeKey>   => { 
                 value = lit.removeSuffixString('i').toHex();
+                let size = if(isneg) then value.size() - 1n else value.size();
+                validate(size <= SMTLimits::min_bvsize // 4n);
                 %% ref ctx.intValidate(value); 
             }
-            | 'BigNat'<SMTAssembly::TypeKey> => { 
+            | 'BigNat'<BSQAssembly::TypeKey> => { 
                 value = lit.removeSuffixString('N').toHex();
+                validate(value.size() <= SMTLimits::min_bvsize // 4n);
                 %% ref ctx.bignatValidate(value); 
             }
-            | 'BigInt'<SMTAssembly::TypeKey> => { 
+            | 'BigInt'<BSQAssembly::TypeKey> => { 
                 value = lit.removeSuffixString('I').toHex();
+                let size = if(isneg) then value.size() - 1n else value.size();
+                validate(value.size() <= SMTLimits::min_bvsize // 4n);
                 %% ref ctx.bigintValidate(value); 
             } 
-            | 'Float'<SMTAssembly::TypeKey>  => { %% No hex repr for float (at least for now)
-                value = exp.value.removeSuffixString('f');   
+            | 'Float'<BSQAssembly::TypeKey>  => { %% No hex repr for float (at least for now)
+                value = exp.value.removeSuffixString('f');
+                let flit = Float::fromCString(lit);
+                validate(flit >= SMTLimits::f16_min && flit <= SMTLimits::f16_max);
                 %% ref ctx.floatValidate(Float::fromCString(exp.value)); 
             }
             | _ => { abort; }
         }
 
-        let smtexp = SMTAssembly::LiteralSimpleExpression{vtype, value, exp.value.startsWithString('-')};
+        let vtype = this.transformStdTypeToSMT(exp.etype);
+        let smtexp = SMTAssembly::LiteralSimpleExpression{vtype, value, isneg};
         return smtexp;
     }
 
