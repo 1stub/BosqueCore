@@ -7,8 +7,8 @@ const signf = 'function sign(x: Int): Int {var y: Int; if(x == 0i) { y = 0i; } e
 
 describe ("SMT sign exec", () => {
     it("should exec sign", function () {
-        runishMainCodeUnsat(`${signf} public function main(): Int { return sign(5i); }`, "(assert (not (= 1 Main@main)))"); 
-        runishMainCodeUnsat(`${signf} public function main(): Int { return sign(-5i); }`, "(assert (not (= -1 Main@main)))");
-        runishMainCodeUnsat(`${signf} public function main(): Int { return sign(0i); }`, "(assert (not (= 0 Main@main)))");
+        runishMainCodeUnsat(`${signf} public function main(): Int { return sign(5i); }`, "(assert (not (= #x01 Main@main)))"); 
+        runishMainCodeUnsat(`${signf} public function main(): Int { return sign(-5i); }`, "(assert (not (= #xff Main@main)))");
+        runishMainCodeUnsat(`${signf} public function main(): Int { return sign(0i); }`, "(assert (not (= #x00 Main@main)))");
     });
 });

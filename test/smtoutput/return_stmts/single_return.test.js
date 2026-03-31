@@ -5,6 +5,6 @@ import { describe, it } from "node:test";
 
 describe ("SMT -- simple return", () => {
     it("should smt exec simple returns", function () {
-        runishMainCodeUnsat('public function main(): Int { return 2i; }', "(assert (not (= 2 Main@main)))");
+        runishMainCodeUnsat('public function main(): Int { return 2i; }', "(assert (not (= #x02 Main@main)))");
     });
 });

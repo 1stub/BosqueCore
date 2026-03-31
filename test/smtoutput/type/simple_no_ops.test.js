@@ -11,7 +11,7 @@ describe ("SMT -- type decl of bool", () => {
 
 describe ("SMT -- type decl of number", () => {
     it("should smt exec numeric type decls", function () {
-        runishMainCodeUnsat('type NVal = Int; public function main(): Int { let e = -2i<NVal>; return e.value; }', "(assert (not (= -2 Main@main)))");
+        runishMainCodeUnsat('type NVal = Int; public function main(): Int { let e = -2i<NVal>; return e.value; }', "(assert (not (= #xfe Main@main)))");
     });
 });
 

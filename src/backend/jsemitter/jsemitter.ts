@@ -3268,10 +3268,6 @@ class JSEmitter {
                 decls.push(this.emitCreateAPIValidate(tdecl, undefined, rcvr, fmt));
             }
 
-            if(tdecl.name.includes("Int")) {
-                console.log(tdecl.name);
-            }
-
             const islistopscore = tdecl.ns.ns.join("::") === "Core::ListOps";
             const ismapopscore = tdecl.ns.ns.join("::") === "Core::MapOps";
 

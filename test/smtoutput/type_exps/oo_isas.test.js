@@ -11,10 +11,10 @@ describe ("SMT -- entity is/as", () => {
     });
 
     it("should smt exec simple entity as", function () {
-        runishMainCodeUnsat('concept Foo { field f: Int; } concept Baz {} entity Bar provides Foo, Baz { } public function main(): Int { return Bar{3i}@<Bar>.f; }', "(assert (not (= Main@main 3)))");
-        runishMainCodeUnsat('concept Foo { field f: Int; } concept Baz {} entity Bar provides Foo, Baz { } public function main(): Int { let bb: Foo = Bar{3i}; return bb@<Bar>.f; }', "(assert (not (= Main@main (@Result-ok 3))))");
+        runishMainCodeUnsat('concept Foo { field f: Int; } concept Baz {} entity Bar provides Foo, Baz { } public function main(): Int { return Bar{3i}@<Bar>.f; }', "(assert (not (= Main@main #x03)))");
+        runishMainCodeUnsat('concept Foo { field f: Int; } concept Baz {} entity Bar provides Foo, Baz { } public function main(): Int { let bb: Foo = Bar{3i}; return bb@<Bar>.f; }', "(assert (not (= Main@main (@Result-ok #x03))))");
 
-        runishMainCodeUnsat('concept Foo { field f: Int; } concept Baz {} entity Bar provides Foo, Baz { } public function main(): Int { return Bar{3i}@<Foo>.f; }', "(assert (not (= Main@main 3)))");
+        runishMainCodeUnsat('concept Foo { field f: Int; } concept Baz {} entity Bar provides Foo, Baz { } public function main(): Int { return Bar{3i}@<Foo>.f; }', "(assert (not (= Main@main #x03)))");
     });
 
     it("should smt exec (fail) simple entity as", function () {

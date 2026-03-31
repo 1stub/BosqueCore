@@ -539,7 +539,7 @@ recursive function emitBinDivExpression(e: SMTAssembly::BinDivExpression, eev: S
     let rhs = emitSafeExpression[recursive](e.rhs, eev);
 
     if(!e.usefp) {    
-	    let op = if(e.signed) then 'bvudiv ' else 'bvsdiv ';
+	    let op = if(e.signed) then 'bvsdiv ' else 'bvudiv ';
         return CString::concat('(', op, lhs, ' ', rhs, ')');
     }
     else {

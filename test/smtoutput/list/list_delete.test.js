@@ -5,18 +5,18 @@ import { describe, it } from "node:test";
 
 describe ("SMT List -- delete", () => {
     it("should delete index", function () {
-        runishMainCodeUnsat('public function main(): Nat { return List<Int>{1i, 2i}.delete(1n).size(); }', "(assert (not (= (@Result-ok 1) Main@main)))");
-        runishMainCodeUnsat('public function main(): Int { return List<Int>{1i, 3i}.pushBack(2i).delete(1n).back(); }', "(assert (not (= (@Result-ok 2) Main@main)))"); 
-        runishMainCodeUnsat('public function main(): Int { return List<Int>{2i, 2i}.pushFront(3i).delete(2n).front(); }', "(assert (not (= (@Result-ok 3) Main@main)))"); 
-        runishMainCodeUnsat('public function main(): Nat { return List<Int>{2i, 2i}.pushFront(3i).delete(2n).size(); }', "(assert (not (= (@Result-ok 2) Main@main)))"); 
-        runishMainCodeUnsat('public function main(): Int { return List<Int>{1i}.pushBack(2i).pushFront(3i).delete(0n).front(); }', "(assert (not (= (@Result-ok 1) Main@main)))"); 
-        runishMainCodeUnsat('public function main(): Int { return List<Int>{1i, 2i}.delete(1n).get(0n); }', "(assert (not (= (@Result-ok 1) Main@main)))"); 
+        runishMainCodeUnsat('public function main(): Nat { return List<Int>{1i, 2i}.delete(1n).size(); }', "(assert (not (= (@Result-ok #x01) Main@main)))");
+        runishMainCodeUnsat('public function main(): Int { return List<Int>{1i, 3i}.pushBack(2i).delete(1n).back(); }', "(assert (not (= (@Result-ok #x02) Main@main)))"); 
+        runishMainCodeUnsat('public function main(): Int { return List<Int>{2i, 2i}.pushFront(3i).delete(2n).front(); }', "(assert (not (= (@Result-ok #x03) Main@main)))"); 
+        runishMainCodeUnsat('public function main(): Nat { return List<Int>{2i, 2i}.pushFront(3i).delete(2n).size(); }', "(assert (not (= (@Result-ok #x02) Main@main)))"); 
+        runishMainCodeUnsat('public function main(): Int { return List<Int>{1i}.pushBack(2i).pushFront(3i).delete(0n).front(); }', "(assert (not (= (@Result-ok #x01) Main@main)))"); 
+        runishMainCodeUnsat('public function main(): Int { return List<Int>{1i, 2i}.delete(1n).get(0n); }', "(assert (not (= (@Result-ok #x01) Main@main)))"); 
     });
     
     it("should delete front", function () {
-        runishMainCodeUnsat('public function main(): Nat { return List<Int>{1i, 2i}.deleteFront().size(); }', "(assert (not (= (@Result-ok 1) Main@main)))");
-        runishMainCodeUnsat('public function main(): Int { return List<Int>{1i, 2i}.pushFront(3i).deleteFront().front(); }', "(assert (not (= (@Result-ok 1) Main@main)))"); 
-        runishMainCodeUnsat('public function main(): Int { return List<Int>{1i, 2i}.pushFront(3i).deleteFront().get(1n); }', "(assert (not (= (@Result-ok 2) Main@main)))"); 
+        runishMainCodeUnsat('public function main(): Nat { return List<Int>{1i, 2i}.deleteFront().size(); }', "(assert (not (= (@Result-ok #x01) Main@main)))");
+        runishMainCodeUnsat('public function main(): Int { return List<Int>{1i, 2i}.pushFront(3i).deleteFront().front(); }', "(assert (not (= (@Result-ok #x01) Main@main)))"); 
+        runishMainCodeUnsat('public function main(): Int { return List<Int>{1i, 2i}.pushFront(3i).deleteFront().get(1n); }', "(assert (not (= (@Result-ok #x02) Main@main)))"); 
     });
     
     it("should fail delete front if empty", function () {
@@ -24,9 +24,9 @@ describe ("SMT List -- delete", () => {
     });
     
     it("should delete back", function () {
-        runishMainCodeUnsat('public function main(): Nat { return List<Int>{1i, 2i}.deleteBack().size(); }', "(assert (not (= (@Result-ok 1) Main@main)))");
-        runishMainCodeUnsat('public function main(): Int { return List<Int>{1i, 2i}.pushBack(3i).deleteBack().back(); }', "(assert (not (= (@Result-ok 2) Main@main)))"); 
-        runishMainCodeUnsat('public function main(): Int { return List<Int>{1i, 2i}.pushBack(3i).deleteBack().deleteBack().get(0n); }', "(assert (not (= (@Result-ok 1) Main@main)))"); 
+        runishMainCodeUnsat('public function main(): Nat { return List<Int>{1i, 2i}.deleteBack().size(); }', "(assert (not (= (@Result-ok #x01) Main@main)))");
+        runishMainCodeUnsat('public function main(): Int { return List<Int>{1i, 2i}.pushBack(3i).deleteBack().back(); }', "(assert (not (= (@Result-ok #x02) Main@main)))"); 
+        runishMainCodeUnsat('public function main(): Int { return List<Int>{1i, 2i}.pushBack(3i).deleteBack().deleteBack().get(0n); }', "(assert (not (= (@Result-ok #x01) Main@main)))"); 
     });
     
     it("should fail delete back if empty", function () {

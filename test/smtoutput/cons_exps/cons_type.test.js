@@ -6,14 +6,14 @@ import { describe, it } from "node:test";
 
 describe ("SMT -- Type Alias Constructor", () => {
     it("should smt exec positional", function () {
-        runishMainCodeUnsat('type Foo = Int; public function main(): Int { return Foo{1i}.value; }', "(assert (not (= 1 Main@main)))");
+        runishMainCodeUnsat('type Foo = Int; public function main(): Int { return Foo{1i}.value; }', "(assert (not (= #x01 Main@main)))");
     });
 });
 
 
 describe ("SMT -- Type Alias w/ Invariant Constructor", () => {
     it("should smt exec positional", function () {
-        runishMainCodeUnsat('type Foo = Int & { invariant $value > 3i; } public function main(): Int { return Foo{4i}.value; }', "(assert (not (= (@Result-ok 4) Main@main)))");
+        runishMainCodeUnsat('type Foo = Int & { invariant $value > 3i; } public function main(): Int { return Foo{4i}.value; }', "(assert (not (= (@Result-ok #x04) Main@main)))");
     });
 
     it("should smt fail inv", function () {

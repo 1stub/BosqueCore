@@ -5,8 +5,8 @@ import { describe, it } from "node:test";
 
 describe ("Exec -- logical or", () => {
     it("should exec simple or", function () {
-        runishMainCodeUnsat("public function main(a: Int ): Bool { return a == 1i || false; }", "(assert (not (Main@main 1)))");
-        runishMainCodeUnsat("public function main(a: Int): Bool { return a == 1i || false; }", "(assert (Main@main 2))");
+        runishMainCodeUnsat("public function main(a: Int ): Bool { return a == 1i || false; }", "(assert (not (Main@main #x01)))");
+        runishMainCodeUnsat("public function main(a: Int): Bool { return a == 1i || false; }", "(assert (Main@main #x02))");
     });
 
     it("should exec sc or", function () {

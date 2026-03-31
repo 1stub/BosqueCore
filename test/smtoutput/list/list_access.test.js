@@ -5,24 +5,24 @@ import { describe, it } from "node:test";
 
 describe ("SMT List -- access", () => {
     it("smt should get single", function () {
-        runishMainCodeUnsat('public function main(): Int { return List<Int>{1i}.single(); }', "(assert (not (= (@Result-ok 1) Main@main)))"); 
+        runishMainCodeUnsat('public function main(): Int { return List<Int>{1i}.single(); }', "(assert (not (= (@Result-ok #x01) Main@main)))"); 
     });
 
     it("smt should get back", function () {
-        runishMainCodeUnsat('public function main(): Int { return List<Int>{1i}.back(); }', "(assert (not (= (@Result-ok 1) Main@main)))"); 
-        runishMainCodeUnsat('public function main(): Int { return List<Int>{1i, 2i}.back(); }', "(assert (not (= (@Result-ok 2) Main@main)))"); 
+        runishMainCodeUnsat('public function main(): Int { return List<Int>{1i}.back(); }', "(assert (not (= (@Result-ok #x01) Main@main)))"); 
+        runishMainCodeUnsat('public function main(): Int { return List<Int>{1i, 2i}.back(); }', "(assert (not (= (@Result-ok #x02) Main@main)))"); 
     });
 
     it("smt should get front", function () {
-        runishMainCodeUnsat('public function main(): Int { return List<Int>{1i}.front(); }', "(assert (not (= (@Result-ok 1) Main@main)))"); 
-        runishMainCodeUnsat('public function main(): Int { return List<Int>{1i, 2i}.front(); }', "(assert (not (= (@Result-ok 1) Main@main)))"); 
+        runishMainCodeUnsat('public function main(): Int { return List<Int>{1i}.front(); }', "(assert (not (= (@Result-ok #x01) Main@main)))"); 
+        runishMainCodeUnsat('public function main(): Int { return List<Int>{1i, 2i}.front(); }', "(assert (not (= (@Result-ok #x01) Main@main)))"); 
     });
 
     it("smt should get index", function () {
-        runishMainCodeUnsat('public function main(): Int { return List<Int>{1i}.get(0n); }', "(assert (not (= (@Result-ok 1) Main@main)))"); 
-        runishMainCodeUnsat('public function main(): Int { return List<Int>{1i, 2i, 3i}.get(0n); }', "(assert (not (= (@Result-ok 1) Main@main)))"); 
-        runishMainCodeUnsat('public function main(): Int { return List<Int>{1i, 2i}.get(1n); }', "(assert (not (= (@Result-ok 2) Main@main)))"); 
-        runishMainCodeUnsat('public function main(): Int { return List<Int>{1i, 2i, 3i}.get(1n); }', "(assert (not (= (@Result-ok 2) Main@main)))"); 
+        runishMainCodeUnsat('public function main(): Int { return List<Int>{1i}.get(0n); }', "(assert (not (= (@Result-ok #x01) Main@main)))"); 
+        runishMainCodeUnsat('public function main(): Int { return List<Int>{1i, 2i, 3i}.get(0n); }', "(assert (not (= (@Result-ok #x01) Main@main)))"); 
+        runishMainCodeUnsat('public function main(): Int { return List<Int>{1i, 2i}.get(1n); }', "(assert (not (= (@Result-ok #x02) Main@main)))"); 
+        runishMainCodeUnsat('public function main(): Int { return List<Int>{1i, 2i, 3i}.get(1n); }', "(assert (not (= (@Result-ok #x02) Main@main)))"); 
     });
 
     it("smt should fail get empty", function () {

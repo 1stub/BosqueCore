@@ -18,14 +18,14 @@ describe ("SMT List -- construct empty and isEmpty", () => {
 
 describe ("SMT List -- immediate and size", () => {
     it("smt should create and size", function () {
-        runishMainCodeUnsat('public function main(): Nat { return List<Int>{}.size(); }', "(assert (not (= 0 Main@main)))"); 
-        runishMainCodeUnsat('public function main(): Nat { return List<Int>{1i}.size(); }', "(assert (not (= 1 Main@main)))"); 
-        runishMainCodeUnsat('public function main(): Nat { return List<Int>{1i, 2i, 3i}.size(); }', "(assert (not (= 3 Main@main)))"); 
+        runishMainCodeUnsat('public function main(): Nat { return List<Int>{}.size(); }', "(assert (not (= #x00 Main@main)))"); 
+        runishMainCodeUnsat('public function main(): Nat { return List<Int>{1i}.size(); }', "(assert (not (= #x01 Main@main)))"); 
+        runishMainCodeUnsat('public function main(): Nat { return List<Int>{1i, 2i, 3i}.size(); }', "(assert (not (= #x03 Main@main)))"); 
     });
 
     it("smt should create and lastIndex", function () {
-        runishMainCodeUnsat('public function main(): Nat { return List<Int>{1i}.lastIndex(); }', "(assert (not (= (@Result-ok 0) Main@main)))"); 
-        runishMainCodeUnsat('public function main(): Nat { return List<Int>{1i, 2i, 3i}.lastIndex(); }', "(assert (not (= (@Result-ok 2) Main@main)))"); 
+        runishMainCodeUnsat('public function main(): Nat { return List<Int>{1i}.lastIndex(); }', "(assert (not (= (@Result-ok #x00) Main@main)))"); 
+        runishMainCodeUnsat('public function main(): Nat { return List<Int>{1i, 2i, 3i}.lastIndex(); }', "(assert (not (= (@Result-ok #x02) Main@main)))"); 
     });
 
     it("smt should error empty lastIndex", function () {

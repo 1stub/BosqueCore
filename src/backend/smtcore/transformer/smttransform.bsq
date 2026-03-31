@@ -28,25 +28,31 @@ namespace TransformNameManager {
     }
 
     function convertTypeKey(nskey: BSQAssembly::TypeKey): SMTAssembly::TypeKey {
-        %% Since `Int` is a provided sort already we need to rename it for bv version 
-        if(nskey === 'Int'<BSQAssembly::TypeKey>) {
-            return SMTAssembly::TypeKey::from('@Int');
-        }
+        %% Int is an already provided z3 sort so our custom bitvector version 
+        %% needs renaming 
+        let value =  if(nskey.value.containsString('Int'))
+            then nskey.value.replaceAllStringOccurrences('Int', '@Int')
+            else nskey.value;
 
-        return SMTAssembly::TypeKey::from(resymbolCStringForSMT(nskey.value));
+        return SMTAssembly::TypeKey::from(resymbolCStringForSMT(value));
     }
 
     function convertInvokeKey(ikey: BSQAssembly::InvokeKey, ttags: List<Bool>): SMTAssembly::InvokeKey {
+        %% Same as typekey 
+        let val = if(ikey.value.containsString('Int'))
+            then ikey.value.replaceAllStringOccurrences('Int', '@Int')
+            else ikey.value;
+
         if(ttags.empty()) {
-            return SMTAssembly::InvokeKey::from(resymbolCStringForSMT(ikey.value));
+            return SMTAssembly::InvokeKey::from(resymbolCStringForSMT(val));
         }
         else {
             if(ttags.allOf(pred(tt) => !tt)) {
-                return SMTAssembly::InvokeKey::from(resymbolCStringForSMT(ikey.value));
+                return SMTAssembly::InvokeKey::from(resymbolCStringForSMT(val));
             }
             else {
                 let ttagstr = CString::concatAll(ttags.map<CString>(fn(tt) => if(tt) then 'T' else 'F'));
-                return SMTAssembly::InvokeKey::from(CString::concat(resymbolCStringForSMT(ikey.value), '$$', ttagstr));
+                return SMTAssembly::InvokeKey::from(CString::concat(resymbolCStringForSMT(val), '$$', ttagstr));
             }
         }
     }

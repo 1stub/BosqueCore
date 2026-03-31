@@ -5,7 +5,7 @@ import { describe, it } from "node:test";
 
 describe ("SMT -- Constructable Constructor (Option)", () => {
     it("should smt exec option constructors", function () {
-        runishMainCodeUnsat("public function main(): Int { return Some<Int>{2i}.value; }", "(assert (not (= 2 Main@main)))");
+        runishMainCodeUnsat("public function main(): Int { return Some<Int>{2i}.value; }", "(assert (not (= #x02 Main@main)))");
     });
 });
 

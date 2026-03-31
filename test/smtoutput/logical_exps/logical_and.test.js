@@ -5,10 +5,10 @@ import { describe, it } from "node:test";
 
 describe ("SMT Exec -- logical and", () => {
     it("should smt exec simple and", function () {
-        runishMainCodeUnsat("public function main(a: Int): Bool { return a == 0i && true; }", "(assert (Main@main 1))");
-        runishMainCodeUnsat("public function main(a: Int): Bool { return a != 1i && true; }", "(assert (not (Main@main 0)))");
+        runishMainCodeUnsat("public function main(a: Int): Bool { return a == 0i && true; }", "(assert (Main@main #x01))");
+        runishMainCodeUnsat("public function main(a: Int): Bool { return a != 1i && true; }", "(assert (not (Main@main #x00)))");
 
-        runishMainCodeUnsat("public function main(a: Int): Bool { return a == 0i && (a // 2i == 1i); }", "(assert (not (= (@Result-ok false) (Main@main 1))))");
+        runishMainCodeUnsat("public function main(a: Int): Bool { return a == 0i && (a // 2i == 1i); }", "(assert (not (= (@Result-ok false) (Main@main #x01))))");
     });
 
     it("should smt exec sc and", function () {
