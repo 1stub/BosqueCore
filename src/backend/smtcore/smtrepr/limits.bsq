@@ -46,3 +46,74 @@ function floatMax(bvsize: Nat): Float
         | 64n => { return f64_max; }
     }
 }
+
+entity SMTLiterals {
+    field numeric_bvsize: Nat;
+    field bignumeric_bvsize: Nat;
+	field float_bvsize: Nat;
+
+    %% Validating floats takes extra love 
+	field float_min: Float;
+	field float_max: Float;
+
+	ref method floatUpdate(lit: Float) {
+        let nbvsize = if(lit > SMTLimits::f32_min && lit < SMTLimits::f32_max) 
+            then 32n else 64n;
+
+        ref this[float_bvsize = nbvsize];
+		ref this[float_min = SMTLimits::floatMin(nbvsize)]; 
+		ref this[float_max = SMTLimits::floatMax(nbvsize)];
+		return;
+    }
+
+    ref method validateNumeric(lit: CString) {
+        let size = lit.size();
+        if(size > this.numeric_bvsize) {
+            ref this[numeric_bvsize = size * 4n];
+        }
+
+        if(this.numeric_bvsize > this.bignumeric_bvsize) {
+            ref this[bignumeric_bvsize = this.numeric_bvsize];
+        }
+
+        return;
+    }
+
+    ref method validateBigNumeric(lit: CString) {
+        let size = lit.size();
+        if(size > this.bignumeric_bvsize) {
+            ref this[bignumeric_bvsize = size * 4n];
+        }
+
+        return;
+    }
+
+    ref method natValidate(lit: CString) {
+        ref this.validateNumeric(lit);
+        return;
+    }
+
+    ref method intValidate(lit: CString) {
+        ref this.validateNumeric(lit);
+        return;
+    }
+
+	ref method bignatValidate(lit: CString) {
+        ref this.validateBigNumeric(lit);
+        return;
+	}
+
+	ref method bigintValidate(lit: CString) {
+        ref this.validateBigNumeric(lit);
+        return;
+	}
+
+	ref method floatValidate(lit: CString) {
+        let v = Float::fromCString(lit);
+		if(v < this.float_min || v > this.float_max) {
+            ref this.floatUpdate(v);
+        }
+
+        return;
+	}
+}
