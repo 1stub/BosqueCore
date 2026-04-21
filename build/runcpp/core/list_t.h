@@ -60,6 +60,21 @@ namespace ᐸRuntimeᐳ
             this->data[0] = value;
         }
 
+        // TODO: we should figure out how to use the LIST_T_MAX_LEAF_SIZE value here isntead
+        template<uint32_t TYPE_ID_POS_TREE_T>
+        static ListTInlineContent fromLeaf(const PosRBTree<T, LIST_T_BUFF_SIZE * 2, TYPE_ID_POS_TREE_T>& leaf)
+        {
+            const int64_t lsz = leaf.count();
+            assert(lsz <= LIST_T_BUFF_SIZE);
+            assert(leaf.repr.typeinfo == (PosRBTree<T, LIST_T_BUFF_SIZE * 2, TYPE_ID_POS_TREE_T>::s_leaftypeinfo));
+            
+            ListTInlineContent ninlcnt;
+            std::copy(leaf.repr.data.leaf->data.begin(), leaf.repr.data.leaf->data.begin() + lsz, ninlcnt.data.begin());
+            ninlcnt.count = lsz;
+
+            return ninlcnt;
+        }
+
         ListTInlineContent insert(int64_t index, const T& value) const
         {
             assert(this->count < LIST_T_BUFF_SIZE);
@@ -125,6 +140,11 @@ namespace ᐸRuntimeᐳ
         ListTTreeContent insert(int64_t index, const T& value) const
         {
             return ListTTreeContent{this->postree.insert(index, value)};
+        }
+
+        ListTTreeContent _delete(int64_t index) const
+        {
+            return ListTTreeContent{this->postree._delete(index)};
         }
     };
 
@@ -391,10 +411,20 @@ namespace ᐸRuntimeᐳ
         XList _delete(int64_t index) const
         {
             if(this->ulist.typeinfo == s_inlinetypeinfo) {
-                return XList(this->ulist.data.inlinelist._delete(index));
+                if(this->ulist.data.inlinelist.size() == 1) {
+                    return XList();
+                }
+                else {
+                    return XList(this->ulist.data.inlinelist._delete(index));
+                }
             }
             else {
-                assert(false);
+                if(this->ulist.data.treelist.postree.count() == ListTInlineContent<T>::LIST_T_BUFF_SIZE + 1) {
+                    return XList(ListTInlineContent<T>::template fromLeaf<getPosTreeIDFrom(TYPE_ID_LIST_T)>(this->ulist.data.treelist._delete(index).postree));
+                }
+                else {
+                    return XList(this->ulist.data.treelist._delete(index));
+                }
             }
         }
 

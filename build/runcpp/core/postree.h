@@ -73,11 +73,11 @@ namespace ᐸRuntimeᐳ
 
             PosRBTreeLeaf nleaf;
             insert_index -= subset_index;
-            std::copy(this->data.begin() + subset_index, 
-                      this->data.begin() + subset_index + insert_index, 
+            std::copy(this->data.cbegin() + subset_index, 
+                      this->data.cbegin() + subset_index + insert_index, 
                       nleaf.data.begin());
-            std::copy(this->data.begin() + subset_index + insert_index, 
-                      this->data.begin() + subset_index + length, 
+            std::copy(this->data.cbegin() + subset_index + insert_index, 
+                      this->data.cbegin() + subset_index + length, 
                       nleaf.data.begin() + insert_index + 1);
             
             nleaf.data[insert_index] = value;
@@ -504,7 +504,24 @@ namespace ᐸRuntimeᐳ
                 res.repr.data.node->color = RColor::Black;
                 res = PosRBTree<T, K, TreeID>(balance(res.repr));
             }
-            
+
+            assert(checkRBInvariants(res));
+
+            return res;
+        }
+
+        static PosRBTree<T, K, TreeID> _deletehelper(int64_t index, const PosRBTreeRepr<T, K>& cur)
+        {
+            assert(false);
+        }
+
+        PosRBTree<T, K, TreeID> _delete(int64_t index) const
+        {
+            PosRBTree<T, K, TreeID> res(_deletehelper(index, this->repr)); 
+            if(res.repr.typeinfo == s_nodetypeinfo) {  
+                res.repr.data.node->color = RColor::Black;
+                res = PosRBTree<T, K, TreeID>(balance(res.repr));
+            }
 
             assert(checkRBInvariants(res));
 
