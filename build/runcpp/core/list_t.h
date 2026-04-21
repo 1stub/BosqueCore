@@ -63,7 +63,7 @@ namespace ᐸRuntimeᐳ
         ListTInlineContent insert(int64_t index, const T& value) const
         {
             assert(this->count < LIST_T_BUFF_SIZE);
-            assert(index < LIST_T_BUFF_SIZE);
+            assert(index <= (int64_t)this->count);
            
             ListTInlineContent ninlcnt;
             if(index > 0) {
@@ -75,6 +75,22 @@ namespace ᐸRuntimeᐳ
 
             ninlcnt.data[index] = value;
             ninlcnt.count = this->count + 1;
+
+            return ninlcnt;
+        }
+        
+        ListTInlineContent _delete(int64_t index) const
+        {
+            assert(this->count > 0);
+            assert(index < (int64_t)this->count);
+
+            ListTInlineContent ninlcnt;
+            if(index > 0) {
+                std::copy(this->data.cbegin(), this->data.cbegin() + index - 1, ninlcnt.data.begin());
+            }
+            std::copy(this->data.cbegin() + index + 1, this->data.cbegin() + this->count, ninlcnt.data.begin() + index);
+
+            ninlcnt.count = this->count - 1;
 
             return ninlcnt;
         }
@@ -369,6 +385,16 @@ namespace ᐸRuntimeᐳ
                 else {
                     return XList(this->ulist.data.treelist.insert(index, value));
                 }
+            }
+        }
+
+        XList _delete(int64_t index) const
+        {
+            if(this->ulist.typeinfo == s_inlinetypeinfo) {
+                return XList(this->ulist.data.inlinelist._delete(index));
+            }
+            else {
+                assert(false);
             }
         }
 
