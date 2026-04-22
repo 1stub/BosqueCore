@@ -107,7 +107,7 @@ namespace ᐸRuntimeᐳ
         }
 
         // pretty sure we should have this not be capable of returning empty
-        PosRBTreeLeaf _delete(int64_t index) const 
+        PosRBTreeLeaf del(int64_t index) const 
         {
             assert(index < K);
             assert(this->count > 1);
@@ -527,28 +527,28 @@ namespace ᐸRuntimeᐳ
             return res;
         }
 
-        static PosRBTreeRepr<T, K> bubble(const PosRBTreeRepr<T, K>& cur)
+        static PosRBTreeRepr<T, K> bubble(RColor c, const PosRBTreeRepr<T, K>& l, const PosRBTreeRepr<T, K>& r)
         {
-            assert(cur.typeinfo == s_nodetypeinfo);
-
-            if(cur.data.node->left.typeinfo == nullptr) {
-                return cur.data.node->right;
+            if(l.typeinfo == nullptr) {
+                return r;
             }
-            if(cur.data.node->right.typeinfo == nullptr) {
-                return cur.data.node->left;
+            if(r.typeinfo == nullptr) {
+                return l;
             }
 
-            return balance(cur);
+            // i feel like we should be able to force an invalid state causing one of our insertion balance cases
+            // to run by making this node red, but this needs some more thought
+            return balance(mkwnodeRepr(s_nodeallocator->allocate(l.data.node->count + r.data.node->count, c, l, r)));
         }
 
-        static PosRBTreeRepr<T, K> _deletehelper(int64_t index, const PosRBTreeRepr<T, K>& cur)
+        static PosRBTreeRepr<T, K> delhelper(int64_t index, const PosRBTreeRepr<T, K>& cur)
         {
             assert(cur.typeinfo != nullptr);
 
             if(cur.typeinfo == s_leaftypeinfo) {
                 const int64_t cur_count = cur.data.leaf->count;
                 if(cur_count > 1) {
-                    return mkwleafRepr(s_leafallocator->allocate(cur.data.leaf->_delete(index)));
+                    return mkwleafRepr(s_leafallocator->allocate(cur.data.leaf->del(index)));
                 }
                 else {
                     return PosRBTreeRepr<T, K>();
@@ -558,23 +558,21 @@ namespace ᐸRuntimeᐳ
                 PosRBTreeRepr<T, K> nl, nr;
                 const int64_t lcount = cur.data.node->left.data.node->count;
                 if(index < lcount) {
-                    nl = _deletehelper(index, cur.data.node->left);
+                    nl = delhelper(index, cur.data.node->left);
                     nr = cur.data.node->right;
                 }
                 else {
                     nl = cur.data.node->left;
-                    nr = _deletehelper(index - lcount, cur.data.node->right); 
+                    nr = delhelper(index - lcount, cur.data.node->right); 
                 }
 
-                // might need to be cautious with the color of the node we create for deletion
-                return bubble(mkwnodeRepr(s_nodeallocator->allocate(nl.data.node->count + nr.data.node->count, cur.data.node->color, nl, nr)));
+                return bubble(cur.data.node->color, nl, nr);
             }
         }
 
-        // TODO: i think we should just call these remove or del instead of the weird underscore prefix
-        PosRBTree<T, K, TreeID> _delete(int64_t index) const
+        PosRBTree<T, K, TreeID> del(int64_t index) const
         {
-            PosRBTree<T, K, TreeID> res(_deletehelper(index, this->repr)); 
+            PosRBTree<T, K, TreeID> res(delhelper(index, this->repr)); 
             if(res.repr.typeinfo == s_nodetypeinfo) {  
                 res.repr.data.node->color = RColor::Black;
                 res = PosRBTree<T, K, TreeID>(balance(res.repr));

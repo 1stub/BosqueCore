@@ -94,7 +94,7 @@ namespace ᐸRuntimeᐳ
             return ninlcnt;
         }
         
-        ListTInlineContent _delete(int64_t index) const
+        ListTInlineContent del(int64_t index) const
         {
             assert(this->count > 0);
             assert(index < (int64_t)this->count);
@@ -142,9 +142,9 @@ namespace ᐸRuntimeᐳ
             return ListTTreeContent{this->postree.insert(index, value)};
         }
 
-        ListTTreeContent _delete(int64_t index) const
+        ListTTreeContent del(int64_t index) const
         {
-            return ListTTreeContent{this->postree._delete(index)};
+            return ListTTreeContent{this->postree.del(index)};
         }
     };
 
@@ -408,22 +408,22 @@ namespace ᐸRuntimeᐳ
             }
         }
 
-        XList _delete(int64_t index) const
+        XList del(int64_t index) const
         {
             if(this->ulist.typeinfo == s_inlinetypeinfo) {
                 if(this->ulist.data.inlinelist.size() == 1) {
                     return XList();
                 }
                 else {
-                    return XList(this->ulist.data.inlinelist._delete(index));
+                    return XList(this->ulist.data.inlinelist.del(index));
                 }
             }
             else {
                 if(this->ulist.data.treelist.postree.count() == ListTInlineContent<T>::LIST_T_BUFF_SIZE + 1) {
-                    return XList(ListTInlineContent<T>::template fromLeaf<getPosTreeIDFrom(TYPE_ID_LIST_T)>(this->ulist.data.treelist._delete(index).postree));
+                    return XList(ListTInlineContent<T>::template fromLeaf<getPosTreeIDFrom(TYPE_ID_LIST_T)>(this->ulist.data.treelist.del(index).postree));
                 }
                 else {
-                    return XList(this->ulist.data.treelist._delete(index));
+                    return XList(this->ulist.data.treelist.del(index));
                 }
             }
         }
