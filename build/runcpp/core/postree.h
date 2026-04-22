@@ -105,6 +105,23 @@ namespace ᐸRuntimeᐳ
 
             return nleaf;
         }
+
+        // pretty sure we should have this not be capable of returning empty
+        PosRBTreeLeaf _delete(int64_t index) const 
+        {
+            assert(index < K);
+            assert(this->count > 1);
+
+            PosRBTreeLeaf nleaf;
+            if(index > 0) {
+                std::copy(this->data.cbegin(), this->data.cbegin() + index, nleaf.data.begin());
+            }
+            std::copy(this->data.cbegin() + index + 1, this->data.cbegin() + this->count, nleaf.data.begin() + index);
+
+            nleaf.count = this->count - 1;
+
+            return nleaf;
+        }
     };
 
     template<typename T, int64_t K>
@@ -510,11 +527,51 @@ namespace ᐸRuntimeᐳ
             return res;
         }
 
-        static PosRBTree<T, K, TreeID> _deletehelper(int64_t index, const PosRBTreeRepr<T, K>& cur)
+        static PosRBTreeRepr<T, K> bubble(const PosRBTreeRepr<T, K>& cur)
         {
-            assert(false);
+            assert(cur.typeinfo == s_nodetypeinfo);
+
+            if(cur.data.node->left.typeinfo == nullptr) {
+                return cur.data.node->right;
+            }
+            if(cur.data.node->right.typeinfo == nullptr) {
+                return cur.data.node->left;
+            }
+
+            return balance(cur);
         }
 
+        static PosRBTreeRepr<T, K> _deletehelper(int64_t index, const PosRBTreeRepr<T, K>& cur)
+        {
+            assert(cur.typeinfo != nullptr);
+
+            if(cur.typeinfo == s_leaftypeinfo) {
+                const int64_t cur_count = cur.data.leaf->count;
+                if(cur_count > 1) {
+                    return mkwleafRepr(s_leafallocator->allocate(cur.data.leaf->_delete(index)));
+                }
+                else {
+                    return PosRBTreeRepr<T, K>();
+                }
+            }
+            else {
+                PosRBTreeRepr<T, K> nl, nr;
+                const int64_t lcount = cur.data.node->left.data.node->count;
+                if(index < lcount) {
+                    nl = _deletehelper(index, cur.data.node->left);
+                    nr = cur.data.node->right;
+                }
+                else {
+                    nl = cur.data.node->left;
+                    nr = _deletehelper(index - lcount, cur.data.node->right); 
+                }
+
+                // might need to be cautious with the color of the node we create for deletion
+                return bubble(mkwnodeRepr(s_nodeallocator->allocate(nl.data.node->count + nr.data.node->count, cur.data.node->color, nl, nr)));
+            }
+        }
+
+        // TODO: i think we should just call these remove or del instead of the weird underscore prefix
         PosRBTree<T, K, TreeID> _delete(int64_t index) const
         {
             PosRBTree<T, K, TreeID> res(_deletehelper(index, this->repr)); 
