@@ -437,6 +437,39 @@ namespace ᐸRuntimeᐳ
             return mkwnodeRepr(s_nodeallocator->allocate(nl.data.node->count + nr.data.node->count, RColor::Black, nl, nr));
         }
 
+        // negative blacks on R side (tright = Node{_, NB, Node{_, Black, b, c}, Node{_, Black, d, e}}})
+        static std::optional<PosRBTreeRepr<T, K>> balancehelper_NB_R(const PosRBTreeRepr<T, K>& cur)
+        {
+            if(!verifyBBNode(cur)) {
+                return std::nullopt;
+            }
+
+            const PosRBTreeRepr<T, K>& r = cur.data.node->right;
+            if(!verifyNBNode(r)) {
+                return std::nullopt;
+            }
+
+            const PosRBTreeRepr<T, K>& rl = r.data.node->left;
+            if(!verifyBlackNode(r)) {
+                return std::nullopt;
+            }
+
+            const PosRBTreeRepr<T, K>& rr = r.data.node->right;
+            if(!verifyBlackNode(rr)) {
+                return std::nullopt;
+            }
+
+            const PosRBTreeRepr<T, K>& rll = rl.data.node->left;
+            const PosRBTreeRepr<T, K>& rlr = rl.data.node->right;
+            const PosRBTreeRepr<T, K>& rrl = rr.data.node->left;
+            const PosRBTreeRepr<T, K>& rrr = rr.data.node->right;
+            const PosRBTreeRepr<T, K>& l   = cur.data.node->left;
+            const PosRBTreeRepr<T, K> nrr = mkwnodeRepr(s_nodeallocator->allocate(rrl.data.node->count + rrr.data.node->count, RColor::Red, rrl, rrr));
+            const PosRBTreeRepr<T, K> nl  = mkwnodeRepr(s_nodeallocator->allocate(l.data.node->count + rll.data.node->count, RColor::Black, l, rll));
+            const PosRBTreeRepr<T, K> nr  = mkwnodeRepr(s_nodeallocator->allocate(rlr.data.node->count + nrr.data.node->count, RColor::Black, rlr, nrr));
+            return mkwnodeRepr(s_nodeallocator->allocate(nl.data.node->count + nr.data.node->count, RColor::Black, nl, nr));
+        }
+
         static PosRBTreeRepr<T, K> balance(const PosRBTreeRepr<T, K>& cur)
         {
             if(auto res = balancehelper_RR_LL(cur)) {
