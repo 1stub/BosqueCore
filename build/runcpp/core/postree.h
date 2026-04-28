@@ -118,6 +118,23 @@ namespace ᐸRuntimeᐳ
 
             return nleaf;
         }
+
+        PosRBTreeLeaf del(int64_t index) const 
+        {
+            assert(index < K);
+            assert(this->count > 1);
+
+            PosRBTreeLeaf nleaf;
+            if(index > 0) {
+                std::copy(this->data.cbegin(), this->data.cbegin() + index, nleaf.data.begin());
+            }
+            std::copy(this->data.cbegin() + index + 1, this->data.cbegin() + this->count, nleaf.data.begin() + index);
+
+            nleaf.count = this->count - 1;
+            nleaf.color = this->color;
+
+            return nleaf;
+        }
     };
 
     template<typename T, int64_t K>
@@ -223,9 +240,33 @@ namespace ᐸRuntimeᐳ
             return PosRBTree<T, K, TreeID>(mkwleafRepr(leaf));
         }
 
-       static PosRBTree<T, K, TreeID> mkwnode(PosRBTreeNode<T, K>* node) 
+        static PosRBTree<T, K, TreeID> mkwnode(PosRBTreeNode<T, K>* node) 
         {
             return PosRBTree<T, K, TreeID>(mkwnodeRepr(node));
+        }
+
+        static RColor blacken(RColor c) 
+        {
+            assert(c != RColor::BBlack);
+
+            switch(c) {
+                case RColor::Black:  return RColor::BBlack;
+                case RColor::Red:    return RColor::Black;
+                case RColor::NBlack: return RColor::Red;
+                default: assert(false && "how did i get here?");
+            }
+        }
+
+        static RColor redden(RColor c) 
+        {
+            assert(c != RColor::NBlack);
+
+            switch(c) {
+                case RColor::BBlack: return RColor::Black;
+                case RColor::Black:  return RColor::Red;
+                case RColor::Red:    return RColor::NBlack;
+                default: assert(false && "how did i get here?");
+            }
         }
 
         static int64_t checkRBPathLengthInvariant(const PosRBTreeRepr<T, K>& cur)
@@ -746,8 +787,116 @@ namespace ᐸRuntimeᐳ
             if(res.repr.typeinfo == s_nodetypeinfo) {  
                 res.repr.data.node->color = RColor::Black;
                 res = PosRBTree<T, K, TreeID>(balance(res.repr));
+            } 
+
+            assert(checkRBInvariants(res));
+
+            return res;
+        }
+
+        static int64_t getReprCount(const PosRBTreeRepr<T, K>& cur)
+        {
+            if(cur.typeinfo == nullptr) {
+                return 0;
+            }
+            else if(cur.typeinfo == s_leaftypeinfo) {
+                return cur.data.leaf->count;
+            }
+            else if(cur.typeinfo == s_nodetypeinfo) {
+                return cur.data.node->count;
+            }
+            else {
+                assert(false && "how did i get here?");
+            }
+        }
+
+        static RColor getReprColor(const PosRBTreeRepr<T, K>& cur)
+        {
+            if(cur.typeinfo == nullptr) {
+                return cur.data.empty.color;
+            }
+            if(cur.typeinfo == s_leaftypeinfo) {
+                return cur.data.leaf->color;
+            }
+            if(cur.typeinfo == s_nodetypeinfo) {
+                return cur.data.node->color; 
+            } 
+            
+            assert(false && "non empty/leaf/node typeinfo detected when reddening a tree repr!");
+        }
+
+        static PosRBTreeRepr<T, K> reddenRepr(const PosRBTreeRepr<T, K>& cur)
+        {
+            if(cur.typeinfo == nullptr) {
+                assert(cur.data.empty.color == RColor::BBlack);
+                return mkwemptyRepr(PosRBTreeEmpty(RColor::Black));
+            }
+            if(cur.typeinfo == s_leaftypeinfo) {
+                assert(cur.data.leaf->color == RColor::Black);
+                cur.data.leaf->color = RColor::Red;
+                return mkwleafRepr(s_leafallocator->allocate(*cur.data.leaf));
+            }
+            if(cur.typeinfo == s_nodetypeinfo) {
+                return mkwnodeRepr(s_nodeallocator->allocate(cur.data.node->count, redden(cur.data.node->color), cur.data.node->left, cur.data.node->right));
             }
             
+            assert(false && "non empty/leaf/node typeinfo detected when reddening a tree repr!");
+        }
+
+        static PosRBTreeRepr<T, K> bubble(RColor c, const PosRBTreeRepr<T, K>& l, const PosRBTreeRepr<T, K>& r)
+        {
+            const int64_t ncount = getReprCount(l) + getReprCount(r);
+            if(getReprColor(l) == RColor::BBlack || getReprColor(r) == RColor::BBlack) {
+                return balance(mkwnodeRepr(s_nodeallocator->allocate(ncount, blacken(c), reddenRepr(l), reddenRepr(r))));
+            }
+
+            return mkwnodeRepr(s_nodeallocator->allocate(ncount, c, l, r));
+        }
+
+        static PosRBTreeRepr<T, K> delhelper(int64_t index, const PosRBTreeRepr<T, K>& cur)
+        {
+            assert(cur.typeinfo != nullptr);
+
+            if(cur.typeinfo == s_leaftypeinfo) {
+                const int64_t cur_count = cur.data.leaf->count;
+                if(cur_count > 1) {
+                    return mkwleafRepr(s_leafallocator->allocate(cur.data.leaf->del(index)));
+                }
+                else {
+                    const RColor cc = cur.data.leaf->color;
+                    if(cc == RColor::Red) {
+                        return mkwemptyRepr(PosRBTreeEmpty(RColor::Black));
+                    }
+                    if(cc == RColor::Black) {
+                        return mkwemptyRepr(PosRBTreeEmpty(RColor::BBlack));
+                    }
+                    
+                    assert(false && "attempted to delete non red or black leaf!");
+                }
+            }
+            else {
+                PosRBTreeRepr<T, K> nl, nr;
+                const int64_t lcount = cur.data.node->left.data.node->count;
+                if(index < lcount) {
+                    nl = delhelper(index, cur.data.node->left);
+                    nr = cur.data.node->right;
+                }
+                else {
+                    nl = cur.data.node->left;
+                    nr = delhelper(index - lcount, cur.data.node->right); 
+                }
+
+                return bubble(cur.data.node->color, nl, nr);
+            }
+        }
+
+        PosRBTree<T, K, TreeID> del(int64_t index) const
+        {
+            PosRBTree<T, K, TreeID> res(delhelper(index, this->repr));
+            if(res.repr.typeinfo == s_nodetypeinfo) { 
+                res.repr.data.node->color = RColor::Black;
+                res = PosRBTree<T, K, TreeID>(balance(res.repr));
+            }
 
             assert(checkRBInvariants(res));
 
