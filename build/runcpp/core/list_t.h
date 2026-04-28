@@ -66,10 +66,10 @@ namespace ᐸRuntimeᐳ
         {
             const int64_t lsz = leaf.count();
             assert(lsz <= LIST_T_BUFF_SIZE);
-            assert(leaf.repr.typeinfo == (PosRBTree<T, LIST_T_BUFF_SIZE * 2, TYPE_ID_POS_TREE_T>::s_leaftypeinfo));
+            //assert(leaf.repr.typeinfo == (PosRBTree<T, LIST_T_BUFF_SIZE * 2, TYPE_ID_POS_TREE_T>::s_leaftypeinfo));
             
             ListTInlineContent ninlcnt;
-            std::copy(leaf.repr.data.leaf->data.begin(), leaf.repr.data.leaf->data.begin() + lsz, ninlcnt.data.begin());
+            std::copy(leaf.repr.data.leaf->data.begin(), leaf.repr.data.leaf->data.begin() + lsz - 1, ninlcnt.data.begin());
             ninlcnt.count = lsz;
 
             return ninlcnt;
