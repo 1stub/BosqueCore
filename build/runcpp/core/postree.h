@@ -419,6 +419,34 @@ namespace ᐸRuntimeᐳ
             return true;
         }
 
+        static PosRBTreeRepr<T, K> createRecoloredRepr(RColor nc, const PosRBTreeRepr<T, K>& cur)
+        {
+            assert(cur.typeinfo != nullptr);
+
+            if(cur.typeinfo == s_leaftypeinfo) {
+                cur.data.leaf->color = nc;
+                return mkwleafRepr(s_leafallocator->allocate(*cur.data.leaf));
+            }
+            if(cur.typeinfo == s_nodetypeinfo) {
+                cur.data.node->color = nc;
+                return mkwnodeRepr(s_nodeallocator->allocate(*cur.data.node));
+            }
+
+            assert(false && "non empty/leaf/node typeinfo detected when recoloring a tree repr!");
+        }
+
+        static PosRBTreeRepr<T, K> createReprFromLR(RColor c, const PosRBTreeRepr<T, K>& l, const PosRBTreeRepr<T, K>& r)
+        {
+            if(l.typeinfo == nullptr) {
+                return createRecoloredRepr(c, r);
+            }
+            if(r.typeinfo == nullptr) {
+                return createRecoloredRepr(c, l);
+            }
+
+            return mkwnodeRepr(s_nodeallocator->allocate(getReprCount(l) + getReprCount(r), c, l, r));
+        }
+
         // double red violation on the LL side (tleft = Node{_, Red, Node{_, Red, a, b}, c})
         static std::optional<PosRBTreeRepr<T, K>> balancehelper_RR_LL(const PosRBTreeRepr<T, K>& cur)
         {
@@ -435,26 +463,13 @@ namespace ᐸRuntimeᐳ
             if(!validateRedNodeOrLeaf(ll)) {
                 return std::nullopt;
             }
-            
-            const PosRBTreeRepr<T, K>& lr  = l.data.node->right;
-            const PosRBTreeRepr<T, K>& r   = cur.data.node->right;
 
-            PosRBTreeRepr<T, K> nl;
-            if(ll.typeinfo == s_nodetypeinfo) {
-                const PosRBTreeRepr<T, K>& lll = ll.data.node->left;
-                const PosRBTreeRepr<T, K>& llr = ll.data.node->right;
-                nl = mkwnodeRepr(s_nodeallocator->allocate(lll.data.node->count + llr.data.node->count, RColor::Black, lll, llr));
-            }
-            else {
-                // i THINK this is how we should handle the ll/rr cases
-                // since the value with a and b children is just a leaf we 
-                // just create a black leaf from x
-                ll.data.leaf->color = RColor::Black;
-                nl = mkwleafRepr(s_leafallocator->allocate(*ll.data.leaf));
-            }
-            const PosRBTreeRepr<T, K> nr = mkwnodeRepr(s_nodeallocator->allocate(lr.data.node->count + r.data.node->count, RColor::Black, lr, r));
-            
-            return mkwnodeRepr(s_nodeallocator->allocate(nl.data.node->count + nr.data.node->count, redden(cur.data.node->color), nl, nr));
+            const PosRBTreeRepr<T, K> nl = ll.typeinfo == s_nodetypeinfo
+                ? createReprFromLR(RColor::Black, ll.data.node->left, ll.data.node->right)
+                : createRecoloredRepr(RColor::Black, ll);
+            const PosRBTreeRepr<T, K> nr = createReprFromLR(RColor::Black, l.data.node->right, cur.data.node->right);
+
+            return createReprFromLR(redden(cur.data.node->color), nl, nr);
         }
 
         // double red violation on the LR side (tleft = Node{_, Red, a, Node{_, Red, b, c}})
@@ -474,40 +489,15 @@ namespace ᐸRuntimeᐳ
                 return std::nullopt;
             }
 
-            const PosRBTreeRepr<T, K>& ll  = l.data.node->left;
-            const PosRBTreeRepr<T, K>& r   = cur.data.node->right;
-            
-            PosRBTreeRepr<T, K> nl, nr;
-            if(lr.typeinfo == s_nodetypeinfo) {
-                const PosRBTreeRepr<T, K>& lrl = lr.data.node->left;
-                const PosRBTreeRepr<T, K>& lrr = lr.data.node->right;
-                nl = mkwnodeRepr(s_nodeallocator->allocate(ll.data.node->count + lrl.data.node->count, RColor::Black, ll, lrl));
-                nr = mkwnodeRepr(s_nodeallocator->allocate(lrr.data.node->count + r.data.node->count, RColor::Black, lrr, r));
-            }
-            else {
-                // from the matt might rotation images we lose node y here! hence the assertions triggering
-                // from indexes magically becoming too large (our size shrunk because data was lost!)
+            // we might want to try splitting lr evenly between nl and nr if its a leaf
+            PosRBTreeRepr<T, K> nl = lr.typeinfo == s_nodetypeinfo 
+                    ? createReprFromLR(RColor::Black, l.data.node->left, lr.data.node->left)
+                    : createReprFromLR(RColor::Black, l.data.node->left, lr);
+            PosRBTreeRepr<T, K> nr = lr.typeinfo == s_nodetypeinfo
+                    ? createReprFromLR(RColor::Black, lr.data.node->right, cur.data.node->right)
+                    : createRecoloredRepr(RColor::Black, cur.data.node->right);
 
-                //
-                // what we will want to do is try to split our node (lr here) into two and place appropriately
-                // if this is not possible we just place the leaf with one element at the left most slot
-                //
-
-                nl = mkwnodeRepr(s_nodeallocator->allocate(ll.data.node->count + lr.data.node->count, RColor::Black, ll, lr));
-
-                if(r.typeinfo == s_nodetypeinfo) {
-                    nr = mkwnodeRepr(s_nodeallocator->allocate(r.data.node->count, RColor::Black, r.data.node->left, r.data.node->right));
-                }
-                else if(r.typeinfo == s_leaftypeinfo) {
-                    r.data.leaf->color = RColor::Black;
-                    nr = mkwleafRepr(s_leafallocator->allocate(*r.data.leaf));
-                }
-                else {
-                    nr = mkwemptyRepr(PosRBTreeEmpty(RColor::Black));
-                }
-            }
-
-            return mkwnodeRepr(s_nodeallocator->allocate(nl.data.node->count + nr.data.node->count, redden(cur.data.node->color), nl, nr));
+            return createReprFromLR(redden(cur.data.node->color), nl, nr);
         }
 
         // double red violation on the RL side (tright = Node{_, Red, Node{_, Red, b, c}, d})
@@ -527,39 +517,15 @@ namespace ᐸRuntimeᐳ
                 return std::nullopt;
             }
 
-            const PosRBTreeRepr<T, K>& l   = cur.data.node->left;
-            const PosRBTreeRepr<T, K>& rr  = r.data.node->right;
+            // we might want to try splitting rl evenly between nl and nr if its a leaf
+            PosRBTreeRepr<T, K> nl = rl.typeinfo == s_nodetypeinfo 
+                    ? createReprFromLR(RColor::Black, cur.data.node->left, rl.data.node->left)
+                    : createReprFromLR(RColor::Black, cur.data.node->left, rl);
+            PosRBTreeRepr<T, K> nr = rl.typeinfo == s_nodetypeinfo
+                    ? createReprFromLR(RColor::Black, rl.data.node->right, r.data.node->right)
+                    : createRecoloredRepr(RColor::Black, r.data.node->right);
 
-            PosRBTreeRepr<T, K> nl, nr;
-            if(rl.typeinfo == s_nodetypeinfo) {
-                const PosRBTreeRepr<T, K>& rll = rl.data.node->left;
-                const PosRBTreeRepr<T, K>& rlr = rl.data.node->right; 
-                nl = mkwnodeRepr(s_nodeallocator->allocate(l.data.node->count + rll.data.node->count, RColor::Black, l, rll));
-                nr = mkwnodeRepr(s_nodeallocator->allocate(rlr.data.node->count + rr.data.node->count, RColor::Black, rlr, rr));
-            }
-            else {
-                // from the matt might rotation images we lose node y here! hence the assertions triggering
-                // from indexes magically becoming too large (our size shrunk because data was lost!)
-
-                //
-                // what we will want to do is try to split our node (rl here) into two and place appropriately
-                // if this is not possible we just place the leaf with one element at the left most slot
-                //
-
-                nl = mkwnodeRepr(s_nodeallocator->allocate(l.data.node->count + rl.data.node->count, RColor::Black, l, rl));
-                if(rr.typeinfo == s_nodetypeinfo) {
-                    nr = mkwnodeRepr(s_nodeallocator->allocate(rr.data.node->count, RColor::Black, rr.data.node->left, rr.data.node->right));
-                }
-                else if(rr.typeinfo == s_leaftypeinfo) {
-                    rr.data.leaf->color = RColor::Black;
-                    nr = mkwleafRepr(s_leafallocator->allocate(*rr.data.leaf));
-                }
-                else {
-                    nr = mkwemptyRepr(PosRBTreeEmpty(RColor::Black));
-                }
-            }
-
-            return mkwnodeRepr(s_nodeallocator->allocate(nl.data.node->count + nr.data.node->count, redden(cur.data.node->color), nl, nr));
+            return createReprFromLR(redden(cur.data.node->color), nl, nr);
         }
 
         // double red violation on the RR side (tright = Node{_, Red, b, Node{_, Red, c, d}})
@@ -579,22 +545,12 @@ namespace ᐸRuntimeᐳ
                 return std::nullopt;
             }
 
-            const PosRBTreeRepr<T, K>& l   = cur.data.node->left;
-            const PosRBTreeRepr<T, K>& rl  = r.data.node->left;
-            
-            PosRBTreeRepr<T, K> nr;
-            if(rr.typeinfo == s_nodetypeinfo) {
-                const PosRBTreeRepr<T, K>& rrl = rr.data.node->left;
-                const PosRBTreeRepr<T, K>& rrr = rr.data.node->right;
-                nr = mkwnodeRepr(s_nodeallocator->allocate(rrl.data.node->count + rrr.data.node->count, RColor::Black, rrl, rrr));
-            }
-            else {
-                rr.data.leaf->color = RColor::Black;
-                nr = mkwleafRepr(s_leafallocator->allocate(*rr.data.leaf));
-            }
-            const PosRBTreeRepr<T, K> nl = mkwnodeRepr(s_nodeallocator->allocate(l.data.node->count + rl.data.node->count, RColor::Black, l, rl));
+            const PosRBTreeRepr<T, K> nl = rr.typeinfo == s_nodetypeinfo
+                ? createReprFromLR(RColor::Black, rr.data.node->left, rr.data.node->right)
+                : createRecoloredRepr(RColor::Black, rr);
+            const PosRBTreeRepr<T, K> nr = createReprFromLR(RColor::Black, cur.data.node->left, r.data.node->left);
 
-            return mkwnodeRepr(s_nodeallocator->allocate(nl.data.node->count + nr.data.node->count, redden(cur.data.node->color), nl, nr));
+            return createReprFromLR(redden(cur.data.node->color), nl, nr);
         }
 
         // negative blacks on L side (tleft = Node{_, NB, Node{_, Black, a, b}, Node{_, Black, c, d}})
@@ -619,19 +575,17 @@ namespace ᐸRuntimeᐳ
                 return std::nullopt;
             }
 
-            //
-            // TODO: we need to do the same shit here for handling rr or rl being leafs
-            //
+            const PosRBTreeRepr<T, K> nll = ll.typeinfo == s_nodetypeinfo
+                ? balance(createReprFromLR(RColor::Red, ll.data.node->left, ll.data.node->right))
+                : createRecoloredRepr(RColor::Red, ll);
+            const PosRBTreeRepr<T, K> nl = lr.typeinfo == s_nodetypeinfo
+                ? createReprFromLR(RColor::Black, nll, lr.data.node->left)
+                : createReprFromLR(RColor::Black, nll, lr);
+            const PosRBTreeRepr<T, K> nr = lr.typeinfo == s_nodetypeinfo
+                ? createReprFromLR(RColor::Black, lr.data.node->right, cur.data.node->right)
+                : createRecoloredRepr(RColor::Black, cur.data.node->right);
 
-            const PosRBTreeRepr<T, K>& lll = ll.data.node->left;
-            const PosRBTreeRepr<T, K>& llr = ll.data.node->right;
-            const PosRBTreeRepr<T, K>& lrl = lr.data.node->left;
-            const PosRBTreeRepr<T, K>& lrr = lr.data.node->right;
-            const PosRBTreeRepr<T, K>& r   = cur.data.node->right;
-            const PosRBTreeRepr<T, K> nll = balance(mkwnodeRepr(s_nodeallocator->allocate(lll.data.node->count + llr.data.node->count, RColor::Red, lll, llr)));
-            const PosRBTreeRepr<T, K> nl  = mkwnodeRepr(s_nodeallocator->allocate(nl.data.node->count + lrl.data.node->count, RColor::Black, nll, lrl));
-            const PosRBTreeRepr<T, K> nr  = mkwnodeRepr(s_nodeallocator->allocate(lrr.data.node->count + r.data.node->count, RColor::Black, lrr, r));
-            return mkwnodeRepr(s_nodeallocator->allocate(nl.data.node->count + nr.data.node->count, RColor::Black, nl, nr));
+            return createReprFromLR(RColor::Black, nl, nr);
         }
 
         // negative blacks on R side (tright = Node{_, NB, Node{_, Black, b, c}, Node{_, Black, d, e}}})
@@ -656,19 +610,17 @@ namespace ᐸRuntimeᐳ
                 return std::nullopt;
             }
 
-            //
-            // TODO: we need to do the same shit here for handling rr or rl being leafs
-            //
+            const PosRBTreeRepr<T, K> nrr = rr.typeinfo == s_nodetypeinfo
+                ? balance(createReprFromLR(RColor::Red, rr.data.node->left, rr.data.node->right))
+                : createRecoloredRepr(RColor::Red, rr);
+            const PosRBTreeRepr<T, K> nl = rl.typeinfo == s_nodetypeinfo
+                ? createReprFromLR(RColor::Black, cur.data.node->left, rl.data.node->left)
+                : createReprFromLR(RColor::Black, cur.data.node->left, rl);
+            const PosRBTreeRepr<T, K> nr = rl.typeinfo == s_nodetypeinfo
+                ? createReprFromLR(RColor::Black, rl.data.node->right, nrr)
+                : createRecoloredRepr(RColor::Black, nrr);
 
-            const PosRBTreeRepr<T, K>& l   = cur.data.node->left;
-            const PosRBTreeRepr<T, K>& rll = rl.data.node->left;
-            const PosRBTreeRepr<T, K>& rlr = rl.data.node->right;
-            const PosRBTreeRepr<T, K>& rrl = rr.data.node->left;
-            const PosRBTreeRepr<T, K>& rrr = rr.data.node->right;
-            const PosRBTreeRepr<T, K> nrr = balance(mkwnodeRepr(s_nodeallocator->allocate(rrl.data.node->count + rrr.data.node->count, RColor::Red, rrl, rrr)));
-            const PosRBTreeRepr<T, K> nl  = mkwnodeRepr(s_nodeallocator->allocate(l.data.node->count + rll.data.node->count, RColor::Black, l, rll));
-            const PosRBTreeRepr<T, K> nr  = mkwnodeRepr(s_nodeallocator->allocate(rlr.data.node->count + nrr.data.node->count, RColor::Black, rlr, nrr));
-            return mkwnodeRepr(s_nodeallocator->allocate(nl.data.node->count + nr.data.node->count, RColor::Black, nl, nr));
+            return createReprFromLR(RColor::Black, nl, nr);
         }
 
         static PosRBTreeRepr<T, K> balance(const PosRBTreeRepr<T, K>& cur)
