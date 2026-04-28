@@ -13,7 +13,8 @@ namespace ᐸRuntimeᐳ
     {
         Red,
         Black,
-        BBlack
+        BBlack,
+        NBlack
     };
 
     //TODO: when this is hooked up to the GC we can drop this and use the page type info instead
@@ -21,6 +22,12 @@ namespace ᐸRuntimeᐳ
     {
         Leaf,
         Node
+    };
+
+    struct PosRBTreeEmpty {
+        RColor color;
+
+        PosRBTreeEmpty(RColor _color) : color(_color) { assert(_color == RColor::Black || _color == RColor::BBlack); }
     };
 
     template<typename T, int64_t K> class PosRBTreeNode;
@@ -31,6 +38,7 @@ namespace ᐸRuntimeᐳ
     public:
         int64_t count;
         std::array<T, K> data;
+        RColor color = RColor::Red;
 
         constexpr PosRBTreeLeaf() : count(0) { ; }
         constexpr PosRBTreeLeaf(const PosRBTreeLeaf& other) = default;
@@ -61,7 +69,10 @@ namespace ᐸRuntimeᐳ
 
         PosRBTreeLeaf subset(int64_t index, int64_t length) const
         {
-            return PosRBTreeLeaf(this->data.begin() + index, this->data.begin() + index + length);
+            PosRBTreeLeaf nleaf = PosRBTreeLeaf(this->data.begin() + index, this->data.begin() + index + length);
+            nleaf.color = this->color;
+
+            return nleaf;
         }
 
         PosRBTreeLeaf subsetinsert(int64_t subset_index, int64_t insert_index, int64_t length, const T& value) const
@@ -82,6 +93,7 @@ namespace ᐸRuntimeᐳ
             
             nleaf.data[insert_index] = value;
             nleaf.count = length + 1;
+            nleaf.color = this->color;
 
             return nleaf;
         }
@@ -102,6 +114,7 @@ namespace ᐸRuntimeᐳ
 
             nleaf.data[index] = value;
             nleaf.count = this->count + 1;
+            nleaf.color = this->color;
 
             return nleaf;
         }
@@ -131,11 +144,13 @@ namespace ᐸRuntimeᐳ
     union PosRBTreeUnion
     {
         //empty tree is where boxed union typeinfo is nullptr
+        PosRBTreeEmpty       empty;
         PosRBTreeLeaf<T, K>* leaf;
         PosRBTreeNode<T, K>* node;
 
         constexpr PosRBTreeUnion() : leaf() {}
         constexpr PosRBTreeUnion(const PosRBTreeUnion& other) = default;
+        constexpr PosRBTreeUnion(PosRBTreeEmpty e)       : empty(e) {}
         constexpr PosRBTreeUnion(PosRBTreeLeaf<T, K>* l) : leaf(l) {}
         constexpr PosRBTreeUnion(PosRBTreeNode<T, K>* n) : node(n) {}
     };
@@ -198,6 +213,11 @@ namespace ᐸRuntimeᐳ
             return PosRBTreeRepr<T, K>(s_nodetypeinfo, PosRBTreeUnion<T, K>(node));
         }
 
+        static PosRBTreeRepr<T, K> mkwemptyRepr(PosRBTreeEmpty empty) 
+        {
+            return PosRBTreeRepr<T, K>(nullptr, PosRBTreeUnion<T, K>(empty));
+        }
+
         static PosRBTree<T, K, TreeID> mkwleaf(PosRBTreeLeaf<T, K>* leaf) 
         {
             return PosRBTree<T, K, TreeID>(mkwleafRepr(leaf));
@@ -210,8 +230,18 @@ namespace ᐸRuntimeᐳ
 
         static int64_t checkRBPathLengthInvariant(const PosRBTreeRepr<T, K>& cur)
         {
-            if(cur.typeinfo == s_leaftypeinfo) {
+            if(cur.typeinfo == nullptr) {
+                const RColor cc = cur.data.empty.color; 
+                assert(cc == RColor::Black);
+
                 return 0;
+            }
+
+            if(cur.typeinfo == s_leaftypeinfo) {
+                const RColor cc = cur.data.leaf->color; 
+                assert(cc == RColor::Red || cc == RColor::Black);
+
+                return cc == RColor::Black ? 1 : 0;
             }
             
             const int lc = checkRBPathLengthInvariant(cur.data.node->left);
@@ -256,7 +286,10 @@ namespace ᐸRuntimeᐳ
 
         static bool checkRBInvariants(const PosRBTree<T, K, TreeID>& tree)
         {
-            return checkRBChildColorInvariant(tree.repr) && checkRBPathLengthInvariant(tree.repr) >= 0;
+            const bool a = checkRBChildColorInvariant(tree.repr);
+            const bool b = checkRBPathLengthInvariant(tree.repr) >= 0;
+
+            return a && b; 
         }
 
         static bool validateRedNode(const PosRBTreeRepr<T, K>& cur)
@@ -269,6 +302,19 @@ namespace ᐸRuntimeᐳ
             }
             
             return true; 
+        }
+
+        static bool validateRedNodeOrLeaf(const PosRBTreeRepr<T, K>& cur)
+        {
+            if(cur.typeinfo == s_nodetypeinfo) {
+                return cur.data.node->color == RColor::Red;
+            }
+            else if(cur.typeinfo == s_leaftypeinfo) {
+                return cur.data.leaf->color == RColor::Red;
+            }
+            else {
+                return false; 
+            }
         }
 
         static bool validateBlackNode(const PosRBTreeRepr<T, K>& cur)
@@ -296,16 +342,28 @@ namespace ᐸRuntimeᐳ
             }
 
             const PosRBTreeRepr<T, K>& ll = l.data.node->left;
-            if(!validateRedNode(ll)) {
+            if(!validateRedNodeOrLeaf(ll)) {
                 return std::nullopt;
             }
-
-            const PosRBTreeRepr<T, K>& lll = ll.data.node->left;
-            const PosRBTreeRepr<T, K>& llr = ll.data.node->right;
+            
             const PosRBTreeRepr<T, K>& lr  = l.data.node->right;
             const PosRBTreeRepr<T, K>& r   = cur.data.node->right;
-            const PosRBTreeRepr<T, K> nl = mkwnodeRepr(s_nodeallocator->allocate(lll.data.node->count + llr.data.node->count, RColor::Black, lll, llr));
+
+            PosRBTreeRepr<T, K> nl;
+            if(ll.typeinfo == s_nodetypeinfo) {
+                const PosRBTreeRepr<T, K>& lll = ll.data.node->left;
+                const PosRBTreeRepr<T, K>& llr = ll.data.node->right;
+                nl = mkwnodeRepr(s_nodeallocator->allocate(lll.data.node->count + llr.data.node->count, RColor::Black, lll, llr));
+            }
+            else {
+                // i THINK this is how we should handle the ll/rr cases
+                // since the value with a and b children is just a leaf we 
+                // just create a black leaf from x
+                ll.data.leaf->color = RColor::Black;
+                nl = mkwleafRepr(s_leafallocator->allocate(*ll.data.leaf));
+            }
             const PosRBTreeRepr<T, K> nr = mkwnodeRepr(s_nodeallocator->allocate(lr.data.node->count + r.data.node->count, RColor::Black, lr, r));
+            
             return mkwnodeRepr(s_nodeallocator->allocate(nl.data.node->count + nr.data.node->count, RColor::Red, nl, nr));
         }
 
@@ -322,16 +380,43 @@ namespace ᐸRuntimeᐳ
             }
 
             const PosRBTreeRepr<T, K>& lr = l.data.node->right;
-            if(!validateRedNode(lr)) {
+            if(!validateRedNodeOrLeaf(lr)) {
                 return std::nullopt;
             }
 
             const PosRBTreeRepr<T, K>& ll  = l.data.node->left;
-            const PosRBTreeRepr<T, K>& lrl = lr.data.node->left;
-            const PosRBTreeRepr<T, K>& lrr = lr.data.node->right;
             const PosRBTreeRepr<T, K>& r   = cur.data.node->right;
-            const PosRBTreeRepr<T, K> nl = mkwnodeRepr(s_nodeallocator->allocate(ll.data.node->count + lrl.data.node->count, RColor::Black, ll, lrl));
-            const PosRBTreeRepr<T, K> nr = mkwnodeRepr(s_nodeallocator->allocate(lrr.data.node->count + r.data.node->count, RColor::Black, lrr, r));
+            
+            PosRBTreeRepr<T, K> nl, nr;
+            if(lr.typeinfo == s_nodetypeinfo) {
+                const PosRBTreeRepr<T, K>& lrl = lr.data.node->left;
+                const PosRBTreeRepr<T, K>& lrr = lr.data.node->right;
+                nl = mkwnodeRepr(s_nodeallocator->allocate(ll.data.node->count + lrl.data.node->count, RColor::Black, ll, lrl));
+                nr = mkwnodeRepr(s_nodeallocator->allocate(lrr.data.node->count + r.data.node->count, RColor::Black, lrr, r));
+            }
+            else {
+                // from the matt might rotation images we lose node y here! hence the assertions triggering
+                // from indexes magically becoming too large (our size shrunk because data was lost!)
+
+                //
+                // what we will want to do is try to split our node (lr here) into two and place appropriately
+                // if this is not possible we just place the leaf with one element at the left most slot
+                //
+
+                nl = mkwnodeRepr(s_nodeallocator->allocate(ll.data.node->count + lr.data.node->count, RColor::Black, ll, lr));
+
+                if(r.typeinfo == s_nodetypeinfo) {
+                    nr = mkwnodeRepr(s_nodeallocator->allocate(r.data.node->count, RColor::Black, r.data.node->left, r.data.node->right));
+                }
+                else if(r.typeinfo == s_leaftypeinfo) {
+                    r.data.leaf->color = RColor::Black;
+                    nr = mkwleafRepr(s_leafallocator->allocate(*r.data.leaf));
+                }
+                else {
+                    nr = mkwemptyRepr(PosRBTreeEmpty(RColor::Black));
+                }
+            }
+
             return mkwnodeRepr(s_nodeallocator->allocate(nl.data.node->count + nr.data.node->count, RColor::Red, nl, nr));
         }
 
@@ -348,16 +433,42 @@ namespace ᐸRuntimeᐳ
             }
 
             const PosRBTreeRepr<T, K>& rl = r.data.node->left;
-            if(!validateRedNode(rl)) {
+            if(!validateRedNodeOrLeaf(rl)) {
                 return std::nullopt;
             }
 
             const PosRBTreeRepr<T, K>& l   = cur.data.node->left;
-            const PosRBTreeRepr<T, K>& rll = rl.data.node->left;
-            const PosRBTreeRepr<T, K>& rlr = rl.data.node->right;
             const PosRBTreeRepr<T, K>& rr  = r.data.node->right;
-            const PosRBTreeRepr<T, K> nl = mkwnodeRepr(s_nodeallocator->allocate(l.data.node->count + rll.data.node->count, RColor::Black, l, rll));
-            const PosRBTreeRepr<T, K> nr = mkwnodeRepr(s_nodeallocator->allocate(rlr.data.node->count + rr.data.node->count, RColor::Black, rlr, rr));
+
+            PosRBTreeRepr<T, K> nl, nr;
+            if(rl.typeinfo == s_nodetypeinfo) {
+                const PosRBTreeRepr<T, K>& rll = rl.data.node->left;
+                const PosRBTreeRepr<T, K>& rlr = rl.data.node->right; 
+                nl = mkwnodeRepr(s_nodeallocator->allocate(l.data.node->count + rll.data.node->count, RColor::Black, l, rll));
+                nr = mkwnodeRepr(s_nodeallocator->allocate(rlr.data.node->count + rr.data.node->count, RColor::Black, rlr, rr));
+            }
+            else {
+                // from the matt might rotation images we lose node y here! hence the assertions triggering
+                // from indexes magically becoming too large (our size shrunk because data was lost!)
+
+                //
+                // what we will want to do is try to split our node (rl here) into two and place appropriately
+                // if this is not possible we just place the leaf with one element at the left most slot
+                //
+
+                nl = mkwnodeRepr(s_nodeallocator->allocate(l.data.node->count + rl.data.node->count, RColor::Black, l, rl));
+                if(rr.typeinfo == s_nodetypeinfo) {
+                    nr = mkwnodeRepr(s_nodeallocator->allocate(rr.data.node->count, RColor::Black, rr.data.node->left, rr.data.node->right));
+                }
+                else if(rr.typeinfo == s_leaftypeinfo) {
+                    rr.data.leaf->color = RColor::Black;
+                    nr = mkwleafRepr(s_leafallocator->allocate(*rr.data.leaf));
+                }
+                else {
+                    nr = mkwemptyRepr(PosRBTreeEmpty(RColor::Black));
+                }
+            }
+
             return mkwnodeRepr(s_nodeallocator->allocate(nl.data.node->count + nr.data.node->count, RColor::Red, nl, nr));
         }
 
@@ -374,16 +485,25 @@ namespace ᐸRuntimeᐳ
             }
 
             const PosRBTreeRepr<T, K>& rr = r.data.node->right;
-            if(!validateRedNode(rr)) {
+            if(!validateRedNodeOrLeaf(rr)) {
                 return std::nullopt;
             }
 
             const PosRBTreeRepr<T, K>& l   = cur.data.node->left;
             const PosRBTreeRepr<T, K>& rl  = r.data.node->left;
-            const PosRBTreeRepr<T, K>& rrl = rr.data.node->left;
-            const PosRBTreeRepr<T, K>& rrr = rr.data.node->right;
+            
+            PosRBTreeRepr<T, K> nr;
+            if(rr.typeinfo == s_nodetypeinfo) {
+                const PosRBTreeRepr<T, K>& rrl = rr.data.node->left;
+                const PosRBTreeRepr<T, K>& rrr = rr.data.node->right;
+                nr = mkwnodeRepr(s_nodeallocator->allocate(rrl.data.node->count + rrr.data.node->count, RColor::Black, rrl, rrr));
+            }
+            else {
+                rr.data.leaf->color = RColor::Black;
+                nr = mkwleafRepr(s_leafallocator->allocate(*rr.data.leaf));
+            }
             const PosRBTreeRepr<T, K> nl = mkwnodeRepr(s_nodeallocator->allocate(l.data.node->count + rl.data.node->count, RColor::Black, l, rl));
-            const PosRBTreeRepr<T, K> nr = mkwnodeRepr(s_nodeallocator->allocate(rrl.data.node->count + rrr.data.node->count, RColor::Black, rrl, rrr));
+
             return mkwnodeRepr(s_nodeallocator->allocate(nl.data.node->count + nr.data.node->count, RColor::Red, nl, nr));
         }
 
@@ -483,7 +603,7 @@ namespace ᐸRuntimeᐳ
             }
             else {
                 PosRBTreeRepr<T, K> nl, nr;
-                const int64_t lcount = cur.data.node->left.data.node->count;
+                const int64_t lcount = cur.data.node->left.typeinfo == nullptr ? 0 : cur.data.node->left.data.node->count;
                 if(index < lcount) {
                     nl = inserthelper(index, value, cur.data.node->left);
                     nr = cur.data.node->right;
@@ -493,7 +613,9 @@ namespace ᐸRuntimeᐳ
                     nr = inserthelper(index - lcount, value, cur.data.node->right); 
                 }
 
-                return balance(mkwnodeRepr(s_nodeallocator->allocate(nl.data.node->count + nr.data.node->count, cur.data.node->color, nl, nr)));
+                const int64_t nlcnt = nl.typeinfo == nullptr ? 0 : nl.data.node->count;
+                const int64_t nrcnt = nr.typeinfo == nullptr ? 0 : nr.data.node->count;
+                return balance(mkwnodeRepr(s_nodeallocator->allocate(nlcnt + nrcnt, cur.data.node->color, nl, nr)));
             }
         }
 
